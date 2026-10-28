@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">PickMsg</string>
+    <string name="widget_description">今日通知数与高频应用</string>
+</resources>
