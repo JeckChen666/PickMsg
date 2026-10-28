@@ -24,7 +24,7 @@ data class WebDavConfig(
     val configured: Boolean get() = url.isNotBlank()
 }
 
-/** 全局设置（SharedPreferences + StateFlow），对标竞品 userData/MMKV 层 */
+/** 全局设置（SharedPreferences + StateFlow）（SharedPreferences + StateFlow） */
 object SettingsStore {
 
     private const val PREFS = "pickmsg_settings"

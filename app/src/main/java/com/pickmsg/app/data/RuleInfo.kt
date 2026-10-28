@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 enum class AppMatchMode { ALL, WHITELIST, BLACKLIST }
 
 /**
- * 文本匹配模式（对标竞品 9 种中的前 8 种；第 9 种"复合模式"为嵌套递归，未实现）。
+ * 文本匹配模式（8 种；同类工具常见的第 9 种"复合模式"为嵌套递归，未实现）。
  * 关键词列表均按忽略大小写的 contains 求值。
  */
 enum class MatchMode {
@@ -19,7 +19,7 @@ enum class MatchMode {
     CONTAINS_ALL,
     /** 出现任一关键词即不命中 */
     NOT_CONTAINS_ANY,
-    /** 所有关键词都不出现才命中（与 NOT_CONTAINS_ANY 语义一致，保留枚举对齐竞品） */
+    /** 所有关键词都不出现才命中（与 NOT_CONTAINS_ANY 语义一致，保留为独立枚举值） */
     CONTAINS_NONE,
     /** A 组任一命中 且 B 组任一命中 */
     A_AND_B,

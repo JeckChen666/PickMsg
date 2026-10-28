@@ -5,7 +5,7 @@ import androidx.room.PrimaryKey
 
 /**
  * 计划任务：每天在 time(HH:mm) 且 weekdayMask 含当天时触发，发一条本地通知。
- * 相比竞品的 cron 表达式做了简化（周几位掩码 + 每日一次），覆盖主要用法且免依赖。
+ * 相比通用 cron 表达式做了简化（周几位掩码 + 每日一次），覆盖主要用法且免依赖。
  */
 @Entity(tableName = "plan_task")
 data class PlanTask(

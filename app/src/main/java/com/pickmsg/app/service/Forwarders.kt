@@ -21,7 +21,7 @@ import javax.mail.internet.InternetAddress
 import javax.mail.internet.MimeMessage
 
 /**
- * 通用重试框架（对标竞品 iw1.m6907）：延迟表 5s/10s/15s/15s/15s，
+ * 通用重试框架：延迟表 5s/10s/15s/15s/15s，
  * 每次失败记日志，延迟表耗尽返回 null。
  */
 object Retrier {
@@ -81,7 +81,7 @@ object WebhookSender {
     }
 }
 
-/** 邮件转发：内嵌 JavaMail-Android 直连 SMTP（对标竞品 xc1） */
+/** 邮件转发：内嵌 JavaMail-Android 直连 SMTP */
 object MailSender {
 
     suspend fun send(config: SmtpConfig, to: List<String>, subject: String, body: String): Result<Unit> =
@@ -110,7 +110,7 @@ object MailSender {
         }
 }
 
-/** 短信转发（对标竞品 iw1/m76）：sendIntent 广播回写发送结果 */
+/** 短信转发：sendIntent 广播回写发送结果 */
 object SmsSender {
 
     const val ACTION_SMS_SENT = "com.pickmsg.app.ACTION_SMS_SENT"

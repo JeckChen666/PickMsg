@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 备份序列化：规则/场景/计划任务 ↔ 单个 JSON 文本（竞品"表行 ↔ JSON 一一映射"思路）。
+ * 备份序列化：规则/场景/计划任务 ↔ 单个 JSON 文本。
  * 复用 RuleConverters 的编解码，保证与 Room 存储格式一致。
  */
 object BackupSerializer {

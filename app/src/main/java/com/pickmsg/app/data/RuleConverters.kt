@@ -5,7 +5,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * 列表/枚举字段存 JSON 文本（对标竞品"TEXT 存 JSON"风格，备份/导出可直接复用同一 JSON）。
+ * 列表/枚举字段存 JSON 文本。
  * 解析遇到未知枚举值或坏行时跳过该项，不让单条坏数据拖垮整表读取。
  */
 class RuleConverters {

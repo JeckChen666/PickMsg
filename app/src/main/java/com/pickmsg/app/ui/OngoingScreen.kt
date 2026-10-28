@@ -36,7 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pickmsg.app.service.NotificationCollectorService
 
 /**
- * 常驻通知管理（对标竞品的 snooze 一年隐藏 / 100ms 召回）：
+ * 常驻通知管理：
  * 隐藏完全可逆，恢复靠会话内缓存的通知 key。
  */
 @Composable

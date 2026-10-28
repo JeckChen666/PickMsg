@@ -11,20 +11,25 @@ import com.pickmsg.app.data.RuleInfo
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 import java.util.regex.Pattern
 
 /**
- * 规则匹配（对标竞品 dw7.m3893/m3895/m3897）：
+ * 规则匹配：
  * 应用三模式 × 文本八模式 × 标题/内容且或组合。
  */
 object RuleMatcher {
 
-    // 正则编译缓存（报告 12 §4 指出的自研改进点：竞品每次现场编译）
-    private val regexCache = ConcurrentHashMap<String, Pattern?>()
+    // 正则编译缓存。
+    // 注意 ConcurrentHashMap 不允许 null value：非法正则以 Optional.empty 缓存，
+    // 否则 getOrPut(putIfAbsent(key, null)) 会 NPE 崩掉整个通知处理协程。
+    private val regexCache = ConcurrentHashMap<String, Optional<Pattern>>()
 
     internal fun patternOf(regex: String): Pattern? =
-        regexCache.getOrPut(regex) { runCatching { Pattern.compile(regex) }.getOrNull() }
+        regexCache
+            .getOrPut(regex) { Optional.ofNullable(runCatching { Pattern.compile(regex) }.getOrNull()) }
+            .orElse(null)
 
     fun matchApp(rule: RuleInfo, appKey: String): Boolean = when (rule.matchAppMode) {
         AppMatchMode.ALL -> true
@@ -63,7 +68,7 @@ object RuleMatcher {
 }
 
 /**
- * 格式化管线（对标竞品 dw7.m3901）："一处格式化处处生效"——
+ * 格式化管线："一处格式化处处生效"——
  * 管线输出同时供重发等一切"发送内容"的动作使用。
  */
 object RuleFormatter {
@@ -98,7 +103,7 @@ object RuleFormatter {
 }
 
 /**
- * 动作模板占位符（照抄竞品 Webhook 占位符集合）：
+ * 动作模板占位符（常用 Webhook 占位符集合）：
  * {app} {title} {content} {time} {date} {week} {mobile}
  */
 object TemplateRenderer {
@@ -114,7 +119,7 @@ object TemplateRenderer {
             .replace("{time}", SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(now))
             .replace("{date}", SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(now))
             .replace("{week}", "星期" + "日一二三四五六"[dayOfWeek])
-            .replace("{mobile}", Build.MODEL)
+            .replace("{mobile}", Build.MODEL ?: "unknown")
     }
 }
 

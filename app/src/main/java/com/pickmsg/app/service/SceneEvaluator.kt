@@ -15,7 +15,7 @@ import com.pickmsg.app.data.SceneConditionType
 import java.util.Calendar
 
 /**
- * 场景求值（对标竞品场景系统）：场景内多条件"且"； Wi-Fi SSID / 蓝牙状态
+ * 场景求值：场景内多条件"且"； Wi-Fi SSID / 蓝牙状态
  * 受系统权限限制，拿不到时按"不满足"处理。
  */
 object SceneEvaluator {

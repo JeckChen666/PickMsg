@@ -10,3 +10,5 @@
 .externalNativeBuild/
 .cxx/
 *.hprof
+/keystore/
+/keystore.properties

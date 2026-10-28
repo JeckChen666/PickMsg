@@ -26,7 +26,7 @@ import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * 动作执行器（对标竞品 mg5）：每个动作独立 try-catch，单动作失败不影响其他动作。
+ * 动作执行器：每个动作独立 try-catch，单动作失败不影响其他动作。
  * canceller 由监听服务注入（cancelNotification 是监听连接的能力）。
  */
 object ActionExecutor {

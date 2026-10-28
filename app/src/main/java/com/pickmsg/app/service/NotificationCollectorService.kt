@@ -142,7 +142,7 @@ class NotificationCollectorService : NotificationListenerService() {
         EventLog.log("📬 ${record.appLabel}: ${record.title.ifEmpty { record.text.take(20) }}")
         com.pickmsg.app.widget.PickMsgWidget.tryUpdate(this)
         if (record.isSensitive) {
-            // 敏感占位符在规则循环之前短路，避免把占位文本当真内容外发（报告 03 §4）
+            // 敏感占位符在规则循环之前短路，避免把占位文本当真内容外发
             EventLog.log("🔒 敏感占位符通知，跳过规则匹配")
             return
         }
@@ -165,7 +165,7 @@ class NotificationCollectorService : NotificationListenerService() {
                 continue
             }
             EventLog.log("🎯命中规则: ${rule.name}")
-            // 格式化管线先于一切"发送内容"的动作（报告 04 §18 顺序约束）
+            // 格式化管线先于一切"发送内容"的动作
             val (formattedTitle, formattedText) = RuleFormatter.apply(rule.formatOps, record.title, record.text)
             for (action in rule.actions) {
                 results += ActionExecutor.execute(
@@ -303,7 +303,7 @@ class NotificationCollectorService : NotificationListenerService() {
     }
 
     // ---------------------------------------------------------------------------
-    // 常驻通知管理：快照 / 一年期 snooze 隐藏 / 100ms 召回（报告 01 §4）
+    // 常驻通知管理：快照 / 一年期 snooze 隐藏 / 100ms 召回
     // ---------------------------------------------------------------------------
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {

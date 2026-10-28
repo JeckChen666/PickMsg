@@ -12,7 +12,7 @@ import android.widget.RemoteViews
 import android.widget.TextView
 
 /**
- * 标题/内容四层降级提取（对标竞品 nz3）：
+ * 标题/内容四层降级提取：
  * 标题：EXTRA_TITLE_BIG → EXTRA_TITLE → RemoteViews 第一个 TextView
  * 内容：EXTRA_BIG_TEXT → EXTRA_TEXT_LINES（去重合并）→ EXTRA_TEXT → RemoteViews 其余 TextView
  */
