@@ -24,7 +24,7 @@ data class WebDavConfig(
     val configured: Boolean get() = url.isNotBlank()
 }
 
-/** 全局设置（SharedPreferences + StateFlow）（SharedPreferences + StateFlow） */
+/** 全局设置（SharedPreferences + StateFlow） */
 object SettingsStore {
 
     private const val PREFS = "pickmsg_settings"
@@ -33,6 +33,11 @@ object SettingsStore {
 
     private val _foregroundEnabled = MutableStateFlow(false)
     val foregroundEnabled: StateFlow<Boolean> = _foregroundEnabled.asStateFlow()
+
+    private val _ignoreOngoing = MutableStateFlow(false)
+
+    /** 忽略常驻通知：进度条/状态类通知完全不入库（关闭时折叠为单条记录并累计更新次数） */
+    val ignoreOngoing: StateFlow<Boolean> = _ignoreOngoing.asStateFlow()
 
     private val _keepDays = MutableStateFlow(7)
     val keepDays: StateFlow<Int> = _keepDays.asStateFlow()
@@ -52,6 +57,7 @@ object SettingsStore {
     fun init(context: Context) {
         prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         _foregroundEnabled.value = prefs.getBoolean("foregroundEnabled", false)
+        _ignoreOngoing.value = prefs.getBoolean("ignoreOngoing", false)
         _keepDays.value = prefs.getInt("keepDays", 7)
         _smtp.value = SmtpConfig(
             host = prefs.getString("smtpHost", "").orEmpty(),
@@ -70,6 +76,8 @@ object SettingsStore {
     }
 
     fun setForegroundEnabled(value: Boolean) = persist("foregroundEnabled", value) { _foregroundEnabled.value = it }
+
+    fun setIgnoreOngoing(value: Boolean) = persist("ignoreOngoing", value) { _ignoreOngoing.value = it }
 
     fun setKeepDays(value: Int) = persist("keepDays", value) { _keepDays.value = it }
 

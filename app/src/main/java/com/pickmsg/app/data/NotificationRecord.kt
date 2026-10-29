@@ -38,6 +38,8 @@ data class NotificationRecord(
     val actionResults: List<String> = emptyList(),
     /** 置顶的记录在列表中最先显示，且不参与过期清理 */
     val isPinned: Boolean = false,
+    /** 常驻通知折叠更新：同 key 的后续 post 原地更新本行时的累计次数 */
+    val updateCount: Int = 0,
 ) {
     companion object {
         const val SOURCE_POSTED = "posted"

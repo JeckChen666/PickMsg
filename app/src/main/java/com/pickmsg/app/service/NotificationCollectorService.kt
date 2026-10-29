@@ -31,6 +31,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 
 /** 常驻通知管理页展示的条目 */
 data class ActiveNotificationInfo(
@@ -51,6 +52,13 @@ class NotificationCollectorService : NotificationListenerService() {
     private val dedupLock = Any()
     private var lastKey: String? = null
     private var lastPostTime = 0L
+
+    /** 当前在通知栏"存活"的通知 key：连接时播种，移除时剔除。
+     *  常驻通知折叠更新的依据——存活期间的重复 post 是同一条通知的更新而非新通知 */
+    private val liveKeys: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** 已记录过"合并常驻更新"日志的 key，避免进度条类高频更新刷爆日志 */
+    private val mergeLogged = ConcurrentHashMap.newKeySet<String>()
 
     private var rules: List<RuleInfo> = emptyList()
     private var scenes: List<Scene> = emptyList()
@@ -92,6 +100,8 @@ class NotificationCollectorService : NotificationListenerService() {
         EventLog.log("✅ 通知监听服务已连接")
         registerSmsResultReceiver()
         applyForeground()
+        // 先播种存活集合，随后的快照与回调才能正确识别"已存在通知的更新"
+        runCatching { activeNotifications?.forEach { liveKeys.add(it.key) } }
         collectActiveNotifications()
         scope.launch { PlanTaskScheduler.rescheduleAll(this@NotificationCollectorService) }
     }
@@ -132,13 +142,33 @@ class NotificationCollectorService : NotificationListenerService() {
             EventLog.log("🔕 采集已暂停，忽略 ${sbn.packageName}")
             return
         }
+        if (SettingsStore.ignoreOngoing.value && sbn.isOngoing) {
+            // 忽略常驻通知：进度条/状态类完全不入库（用户显式开启）
+            EventLog.log("🚫 忽略常驻通知: ${sbn.packageName}")
+            return
+        }
         val record = buildRecord(sbn, NotificationRecord.SOURCE_POSTED)
         if (record == null) {
             EventLog.log("📭 无文本内容，跳过 ${sbn.packageName}")
             return
         }
+        // 常驻折叠：存活中的常驻通知再次 post 是同一条通知的更新，原地合并而非插新行
+        if (NotificationUpdatePolicy.resolve(record.isOngoing, sbn.key in liveKeys) ==
+            NotificationUpdatePolicy.Action.MERGE_IN_PLACE
+        ) {
+            val existingId = repository.findIdBySbnKey(sbn.key)
+            if (existingId != null) {
+                repository.mergeOngoingUpdate(existingId, record)
+                if (mergeLogged.add(sbn.key)) {
+                    EventLog.log("🔗 合并常驻更新: ${record.appLabel}（后续更新不再逐条记录）")
+                }
+                return
+            }
+            // 既有记录不存在（如被用户清空）→ 落到正常插入
+        }
         val rowId = repository.insert(record)
         if (rowId == -1L) return
+        liveKeys.add(sbn.key)
         EventLog.log("📬 ${record.appLabel}: ${record.title.ifEmpty { record.text.take(20) }}")
         com.pickmsg.app.widget.PickMsgWidget.tryUpdate(this)
         if (record.isSensitive) {
@@ -309,6 +339,8 @@ class NotificationCollectorService : NotificationListenerService() {
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
         super.onNotificationRemoved(sbn)
         sbn ?: return
+        // 通知已移除：出存活集合，之后同 key 重发才视为新通知
+        liveKeys.remove(sbn.key)
         // 被移除的通知若在管理列表中，刷新状态
         refreshActiveList()
     }
@@ -348,8 +380,24 @@ class NotificationCollectorService : NotificationListenerService() {
                 EventLog.log("⚠️ 读取通知栏快照失败: ${e.message}")
                 null
             } ?: return@launch
-            val records = sbns.mapNotNull { buildRecord(it, NotificationRecord.SOURCE_SNAPSHOT) }
-            val inserted = repository.insertAll(records)
+            val ignoreOngoing = SettingsStore.ignoreOngoing.value
+            var inserted = 0
+            for (sbn in sbns) {
+                if (ignoreOngoing && sbn.isOngoing) continue
+                val record = buildRecord(sbn, NotificationRecord.SOURCE_SNAPSHOT) ?: continue
+                // 重连快照同样走折叠：存活中的常驻通知不因快照反复堆新行
+                if (NotificationUpdatePolicy.resolve(record.isOngoing, sbn.key in liveKeys) ==
+                    NotificationUpdatePolicy.Action.MERGE_IN_PLACE
+                ) {
+                    val existingId = repository.findIdBySbnKey(sbn.key)
+                    if (existingId != null) {
+                        repository.mergeOngoingUpdate(existingId, record)
+                        continue
+                    }
+                }
+                if (repository.insert(record) != -1L) inserted++
+            }
+            liveKeys.addAll(sbns.map { it.key })
             EventLog.log("📸 通知栏快照：${sbns.size} 条，新增 $inserted 条")
         }
     }

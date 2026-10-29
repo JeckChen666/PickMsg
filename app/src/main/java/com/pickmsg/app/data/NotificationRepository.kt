@@ -27,6 +27,12 @@ class NotificationRepository(private val dao: NotificationRecordDao) {
 
     suspend fun setPinned(id: Long, pinned: Boolean) = dao.setPinned(id, pinned)
 
+    /** 常驻通知折叠：查同 key 的既有记录 id，无则返回 null */
+    suspend fun findIdBySbnKey(sbnKey: String): Long? = dao.findIdBySbnKey(sbnKey)
+
+    suspend fun mergeOngoingUpdate(id: Long, record: NotificationRecord) =
+        dao.mergeOngoingUpdate(id, record.title, record.text, record.subText, record.postTime)
+
     /**
      * 分批删除 keepDays 天前、未置顶的记录；每批 1000 条。
      * 返回删除总数。

@@ -153,6 +153,24 @@ fun RecordsScreen(viewModel: MainViewModel) {
                                 },
                             )
                             DropdownMenuItem(
+                                text = { Text("常驻测试通知（验证折叠）") },
+                                onClick = {
+                                    showMenu = false
+                                    val needsPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                                        PackageManager.PERMISSION_GRANTED
+                                    if (needsPermission) {
+                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    } else {
+                                        viewModel.sendTestNotification(ongoing = true)
+                                    }
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("取消常驻测试通知") },
+                                onClick = { showMenu = false; viewModel.cancelOngoingTest() },
+                            )
+                            DropdownMenuItem(
                                 text = { Text(if (showLogs) "收起运行日志" else "运行日志") },
                                 leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
                                 onClick = { showMenu = false; showLogs = !showLogs },
@@ -422,6 +440,7 @@ private fun RecordItem(record: NotificationRecord, onClick: () -> Unit) {
                 }
                 val tags = buildList {
                     if (record.isPinned) add("置顶")
+                    if (record.updateCount > 0) add("更新×${record.updateCount}")
                     if (record.ruleName.isNotEmpty()) add("规则:${record.ruleName}")
                     if (record.isOngoing) add("常驻")
                     if (record.isSensitive) add("敏感占位")

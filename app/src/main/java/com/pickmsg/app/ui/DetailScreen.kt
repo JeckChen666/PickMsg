@@ -90,6 +90,9 @@ fun DetailScreen(
                         add(if (record.source == NotificationRecord.SOURCE_SNAPSHOT) "来自快照" else "实时采集")
                     }.joinToString(" · "),
                 )
+                if (record.updateCount > 0) {
+                    DetailField("更新次数", "${record.updateCount} 次（常驻通知折叠）")
+                }
                 if (record.ruleName.isNotEmpty()) {
                     DetailField("命中规则", record.ruleName)
                 }

@@ -60,6 +60,7 @@ fun MineScreen(viewModel: MineViewModel) {
     val paused by viewModel.paused.collectAsStateWithLifecycle()
     val listenerEnabled by viewModel.listenerEnabled.collectAsStateWithLifecycle()
     val foregroundEnabled by viewModel.foregroundEnabled.collectAsStateWithLifecycle()
+    val ignoreOngoing by viewModel.ignoreOngoing.collectAsStateWithLifecycle()
     val keepDays by viewModel.keepDays.collectAsStateWithLifecycle()
     val smtp by viewModel.smtp.collectAsStateWithLifecycle()
     val webdav by viewModel.webdav.collectAsStateWithLifecycle()
@@ -140,6 +141,17 @@ fun MineScreen(viewModel: MineViewModel) {
                     Text(
                         "保持后台运行",
                         modifier = Modifier.weight(1f).clickable { viewModel.setForegroundEnabled(!foregroundEnabled) },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = ignoreOngoing,
+                        onCheckedChange = { viewModel.setIgnoreOngoing(it) },
+                    )
+                    Text(
+                        "忽略常驻通知（进度条/状态类不入库）",
+                        modifier = Modifier.weight(1f).clickable { viewModel.setIgnoreOngoing(!ignoreOngoing) },
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }

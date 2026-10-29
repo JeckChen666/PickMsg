@@ -102,7 +102,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     @SuppressLint("MissingPermission")
-    fun sendTestNotification() {
+    fun sendTestNotification(ongoing: Boolean = false) {
         val context = getApplication<Application>()
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) {
@@ -114,6 +114,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 .setName("测试通知")
                 .build(),
         )
+        if (ongoing) {
+            // 固定 id：重复发送 = 同一条通知的更新，用于验证常驻折叠
+            val body = "常驻测试更新于 ${formatTime(System.currentTimeMillis())}。" +
+                "多次发送只会折叠为一条记录，更新次数 +1。"
+            val notification = NotificationCompat.Builder(context, TEST_CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("常驻测试通知")
+                .setContentText(body)
+                .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+                .setOngoing(true)
+                .setOnlyAlertOnce(true)
+                .build()
+            try {
+                manager.notify(TEST_ONGOING_ID, notification)
+                EventLog.log("📤 已发送常驻测试通知（同 key 更新）")
+            } catch (e: SecurityException) {
+                EventLog.log("⚠️ 缺少 POST_NOTIFICATIONS 权限")
+            }
+            return
+        }
         val index = ++testCounter
         val body = "这是第 $index 条测试通知，发送于 ${formatDateTime(System.currentTimeMillis())}。" +
             "若它出现在列表中，说明「监听 → 提取 → 入库 → 展示」全链路正常。"
@@ -132,6 +152,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun cancelOngoingTest() {
+        NotificationManagerCompat.from(getApplication()).cancel(TEST_ONGOING_ID)
+        EventLog.log("🗑 常驻测试通知已取消（移除后重发将生成新记录）")
+    }
+
     private fun startOfToday(): Long = Calendar.getInstance().apply {
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
@@ -142,5 +167,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private companion object {
         const val TEST_CHANNEL_ID = "pickmsg_test"
         const val TEST_NOTIFICATION_BASE_ID = 1000
+        const val TEST_ONGOING_ID = 99
     }
 }

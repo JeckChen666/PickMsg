@@ -36,6 +36,7 @@ class MineViewModel(application: Application) : AndroidViewModel(application) {
     val paused: StateFlow<Boolean> = ServiceState.paused
     val logs: StateFlow<List<String>> = EventLog.entries
     val foregroundEnabled: StateFlow<Boolean> = SettingsStore.foregroundEnabled
+    val ignoreOngoing: StateFlow<Boolean> = SettingsStore.ignoreOngoing
     val keepDays: StateFlow<Int> = SettingsStore.keepDays
     val smtp: StateFlow<SmtpConfig> = SettingsStore.smtp
     val webdav: StateFlow<WebDavConfig> = SettingsStore.webdav
@@ -69,6 +70,10 @@ class MineViewModel(application: Application) : AndroidViewModel(application) {
 
     fun togglePaused() {
         ServiceState.setPaused(!ServiceState.paused.value)
+    }
+
+    fun setIgnoreOngoing(value: Boolean) {
+        SettingsStore.setIgnoreOngoing(value)
     }
 
     fun setForegroundEnabled(value: Boolean) {

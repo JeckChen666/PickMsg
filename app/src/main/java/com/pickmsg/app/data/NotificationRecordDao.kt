@@ -50,6 +50,16 @@ interface NotificationRecordDao {
     @Query("UPDATE notification_record SET isPinned = :pinned WHERE id = :id")
     suspend fun setPinned(id: Long, pinned: Boolean)
 
+    /** 常驻通知折叠更新：同 key 的后续 post 原地覆盖最新内容并累计更新次数 */
+    @Query(
+        "UPDATE notification_record SET title = :title, text = :text, subText = :subText, " +
+            "postTime = :postTime, updateCount = updateCount + 1 WHERE id = :id",
+    )
+    suspend fun mergeOngoingUpdate(id: Long, title: String, text: String, subText: String, postTime: Long)
+
+    @Query("SELECT id FROM notification_record WHERE sbnKey = :sbnKey ORDER BY postTime DESC LIMIT 1")
+    suspend fun findIdBySbnKey(sbnKey: String): Long?
+
     @Query(
         "UPDATE notification_record SET ruleId = :ruleId, ruleName = :ruleName, " +
             "actionResults = :actionResults WHERE id = :id",
