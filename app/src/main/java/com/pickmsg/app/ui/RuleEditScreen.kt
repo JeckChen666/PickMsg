@@ -6,6 +6,7 @@ import android.app.Activity
 import android.content.Intent
 import android.media.RingtoneManager
 import android.net.Uri
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -26,21 +26,15 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -60,6 +54,13 @@ import com.pickmsg.app.data.MatchMode
 import com.pickmsg.app.data.RuleInfo
 import com.pickmsg.app.data.SceneMatchMode
 import com.pickmsg.app.service.RuleMatcher
+import com.pickmsg.app.ui.theme.PickMsgDeleteAction
+import com.pickmsg.app.ui.theme.PickMsgFilterChip
+import com.pickmsg.app.ui.theme.PickMsgOutlinedButton
+import com.pickmsg.app.ui.theme.PickMsgScaffold
+import com.pickmsg.app.ui.theme.PickMsgShape
+import com.pickmsg.app.ui.theme.PickMsgSpace
+import com.pickmsg.app.ui.theme.PickMsgTopBar
 
 fun matchModeLabel(mode: MatchMode): String = when (mode) {
     MatchMode.ALL -> "无条件"
@@ -273,6 +274,7 @@ private data class DraftState(
 
 @Composable
 fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -> Unit) {
+    BackHandler(onBack = onClose)
     var draft by remember { mutableStateOf(DraftState.from(existing)) }
     var showFormatDialog by remember { mutableStateOf(false) }
     val appCounts by viewModel.appCounts.collectAsStateWithLifecycle()
@@ -287,10 +289,11 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
         }
     }
 
-    Scaffold(
+    PickMsgScaffold(
+        secondaryPage = true,
         topBar = {
-            TopAppBar(
-                title = { Text(if (existing == null) "新建规则" else "编辑规则") },
+            PickMsgTopBar(
+                title = if (existing == null) "新建规则" else "编辑规则",
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "放弃")
@@ -298,12 +301,11 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
                 },
                 actions = {
                     if (existing != null) {
-                        IconButton(onClick = {
-                            viewModel.delete(existing)
-                            onClose()
-                        }) {
-                            Icon(Icons.Default.Delete, contentDescription = "删除规则")
-                        }
+                        PickMsgDeleteAction(
+                            label = "删除规则",
+                            message = "删除后无法恢复，请确认不再需要此规则。",
+                            onConfirm = { viewModel.delete(existing); onClose() },
+                        )
                     }
                     IconButton(onClick = {
                         if (draft.name.isBlank()) {
@@ -323,11 +325,11 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             modifier = Modifier
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(PickMsgSpace.pagePadding),
+            verticalArrangement = Arrangement.spacedBy(PickMsgSpace.fieldGap),
         ) {
             OutlinedTextField(
+                shape = PickMsgShape.control,
                 value = draft.name,
                 onValueChange = { draft = draft.copy(name = it, nameError = false) },
                 modifier = Modifier.fillMaxWidth(),
@@ -342,9 +344,9 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             )
 
             SectionTitle("应用匹配")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                 AppMatchMode.entries.forEach { mode ->
-                    FilterChip(
+                    PickMsgFilterChip(
                         selected = draft.appMode == mode,
                         onClick = { draft = draft.copy(appMode = mode) },
                         label = {
@@ -361,9 +363,9 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             }
             if (draft.appMode != AppMatchMode.ALL) {
                 if (draft.apps.isNotEmpty()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                         draft.apps.forEach { pkg ->
-                            FilterChip(
+                            PickMsgFilterChip(
                                 selected = true,
                                 onClick = { draft = draft.copy(apps = draft.apps - pkg) },
                                 label = { Text(pkg) },
@@ -376,9 +378,9 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
                 }
                 if (appCounts.isNotEmpty()) {
                     Text("从已采集的应用中选择：", style = MaterialTheme.typography.bodySmall)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                         appCounts.forEach { app ->
-                            FilterChip(
+                            PickMsgFilterChip(
                                 selected = app.packageName in draft.apps,
                                 onClick = {
                                     draft = if (app.packageName in draft.apps) {
@@ -423,13 +425,13 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             )
 
             SectionTitle("组合方式")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                PickMsgFilterChip(
                     selected = !draft.titleOrText,
                     onClick = { draft = draft.copy(titleOrText = false) },
                     label = { Text("标题且内容") },
                 )
-                FilterChip(
+                PickMsgFilterChip(
                     selected = draft.titleOrText,
                     onClick = { draft = draft.copy(titleOrText = true) },
                     label = { Text("标题或内容") },
@@ -455,7 +457,7 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
                     }
                 }
             }
-            OutlinedButton(onClick = { showFormatDialog = true }) {
+            PickMsgOutlinedButton(onClick = { showFormatDialog = true }) {
                 Icon(Icons.Default.Add, contentDescription = null, Modifier.width(18.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("添加格式化")
@@ -486,8 +488,8 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             SectionTitle("动作 · 提醒")
             ActionRow("播放铃声", draft.needSound) { draft = draft.copy(needSound = it) }
             if (draft.needSound) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                    PickMsgOutlinedButton(onClick = {
                         val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
                             putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
                             putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
@@ -505,6 +507,7 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             ActionRow("震动", draft.needVibrate) { draft = draft.copy(needVibrate = it) }
             if (draft.needVibrate) {
                 OutlinedTextField(
+                    shape = PickMsgShape.control,
                     value = draft.vibratePattern,
                     onValueChange = { draft = draft.copy(vibratePattern = it) },
                     modifier = Modifier.fillMaxWidth(),
@@ -526,9 +529,9 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             ActionRow("Webhook", draft.needWebhook) { draft = draft.copy(needWebhook = it) }
             if (draft.needWebhook) {
                 Text("预设：", style = MaterialTheme.typography.bodySmall)
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                     WEBHOOK_PRESETS.forEach { (label, prefix) ->
-                        FilterChip(
+                        PickMsgFilterChip(
                             selected = draft.webhookUrl.startsWith(prefix) && prefix.isNotEmpty(),
                             onClick = {
                                 draft = draft.copy(
@@ -542,15 +545,16 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
                     }
                 }
                 OutlinedTextField(
+                    shape = PickMsgShape.control,
                     value = draft.webhookUrl,
                     onValueChange = { draft = draft.copy(webhookUrl = it) },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Webhook URL") },
                     singleLine = true,
                 )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                     listOf("GET", "POST").forEach { m ->
-                        FilterChip(
+                        PickMsgFilterChip(
                             selected = draft.webhookMethod == m,
                             onClick = { draft = draft.copy(webhookMethod = m) },
                             label = { Text(m) },
@@ -558,19 +562,21 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
                     }
                 }
                 OutlinedTextField(
+                    shape = PickMsgShape.control,
                     value = draft.webhookHeaders,
                     onValueChange = { draft = draft.copy(webhookHeaders = it) },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("自定义 Headers（每行 Key: Value）") },
                 )
                 OutlinedTextField(
+                    shape = PickMsgShape.control,
                     value = draft.webhookBody,
                     onValueChange = { draft = draft.copy(webhookBody = it) },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Body 模板") },
                 )
                 PlaceholderHint()
-                OutlinedButton(onClick = {
+                PickMsgOutlinedButton(onClick = {
                     viewModel.testWebhook(
                         ActionSpec(
                             type = ActionType.WEBHOOK,
@@ -590,6 +596,7 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             ActionRow("邮件转发（SMTP 账号在「我的」里配置）", draft.needEmail) { draft = draft.copy(needEmail = it) }
             if (draft.needEmail) {
                 OutlinedTextField(
+                    shape = PickMsgShape.control,
                     value = draft.emailTo,
                     onValueChange = { draft = draft.copy(emailTo = it) },
                     modifier = Modifier.fillMaxWidth(),
@@ -600,6 +607,7 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             ActionRow("短信转发", draft.needSms) { draft = draft.copy(needSms = it) }
             if (draft.needSms) {
                 OutlinedTextField(
+                    shape = PickMsgShape.control,
                     value = draft.smsNumbers,
                     onValueChange = { draft = draft.copy(smsNumbers = it) },
                     modifier = Modifier.fillMaxWidth(),
@@ -619,12 +627,12 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
                 Text(
                     "还没有场景，先在「场景」页创建",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                     scenes.forEach { scene ->
-                        FilterChip(
+                        PickMsgFilterChip(
                             selected = scene.id in draft.scenesIds,
                             onClick = {
                                 draft = if (scene.id in draft.scenesIds) {
@@ -638,9 +646,9 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
                     }
                 }
                 if (draft.scenesIds.isNotEmpty()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                         SceneMatchMode.entries.forEach { mode ->
-                            FilterChip(
+                            PickMsgFilterChip(
                                 selected = draft.sceneMatchMode == mode,
                                 onClick = { draft = draft.copy(sceneMatchMode = mode) },
                                 label = { Text(if (mode == SceneMatchMode.ANY) "任一场景满足" else "全部场景满足") },
@@ -656,6 +664,7 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             var testText by remember { mutableStateOf("") }
             var testPkg by remember { mutableStateOf("") }
             OutlinedTextField(
+                shape = PickMsgShape.control,
                 value = testTitle,
                 onValueChange = { testTitle = it },
                 modifier = Modifier.fillMaxWidth(),
@@ -663,12 +672,14 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
                 singleLine = true,
             )
             OutlinedTextField(
+                shape = PickMsgShape.control,
                 value = testText,
                 onValueChange = { testText = it },
                 modifier = Modifier.fillMaxWidth(),
                 label = { Text("测试内容") },
             )
             OutlinedTextField(
+                shape = PickMsgShape.control,
                 value = testPkg,
                 onValueChange = { testPkg = it },
                 modifier = Modifier.fillMaxWidth(),
@@ -726,6 +737,7 @@ private fun ActionRow(label: String, checked: Boolean, onToggle: (Boolean) -> Un
 @Composable
 private fun NumberField(label: String, value: String, onChange: (String) -> Unit) {
     OutlinedTextField(
+        shape = PickMsgShape.control,
         value = value,
         onValueChange = { onChange(it.filter { c -> c.isDigit() }.take(4)) },
         modifier = Modifier.width(180.dp),
@@ -737,6 +749,7 @@ private fun NumberField(label: String, value: String, onChange: (String) -> Unit
 @Composable
 private fun TemplateField(label: String, value: String, onChange: (String) -> Unit) {
     OutlinedTextField(
+        shape = PickMsgShape.control,
         value = value,
         onValueChange = onChange,
         modifier = Modifier.fillMaxWidth(),
@@ -749,7 +762,7 @@ private fun PlaceholderHint() {
     Text(
         "可用占位符：{app} {title} {content} {time} {date} {week} {mobile}",
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.outline,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
@@ -757,24 +770,25 @@ private fun PlaceholderHint() {
 private fun SectionTitle(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.titleSmall,
+        style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 8.dp),
+        modifier = Modifier.padding(top = PickMsgSpace.sectionGap - PickMsgSpace.fieldGap),
     )
 }
 
 @Composable
 private fun ManualPackageInput(onAdd: (String) -> Unit) {
     var text by remember { mutableStateOf("") }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
         OutlinedTextField(
+            shape = PickMsgShape.control,
             value = text,
             onValueChange = { text = it },
             modifier = Modifier.weight(1f),
             label = { Text("手动输入包名") },
             singleLine = true,
         )
-        OutlinedButton(
+        PickMsgOutlinedButton(
             onClick = {
                 val pkg = text.trim()
                 if (pkg.isNotEmpty()) {
@@ -799,9 +813,9 @@ private fun MatchSection(
     onChange: (MatchMode, String, String, String) -> Unit,
 ) {
     SectionTitle(title)
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
         MatchMode.entries.forEach { m ->
-            FilterChip(
+            PickMsgFilterChip(
                 selected = mode == m,
                 onClick = { onChange(m, keywords, groupA, groupB) },
                 label = { Text(matchModeLabel(m)) },
@@ -812,6 +826,7 @@ private fun MatchSection(
         MatchMode.ALL -> {}
         MatchMode.A_AND_B -> {
             OutlinedTextField(
+                shape = PickMsgShape.control,
                 value = groupA,
                 onValueChange = { onChange(mode, keywords, it, groupB) },
                 modifier = Modifier.fillMaxWidth(),
@@ -819,6 +834,7 @@ private fun MatchSection(
                 supportingText = { Text("多个用逗号分隔，A 组任一命中且 B 组任一命中") },
             )
             OutlinedTextField(
+                shape = PickMsgShape.control,
                 value = groupB,
                 onValueChange = { onChange(mode, keywords, groupA, it) },
                 modifier = Modifier.fillMaxWidth(),
@@ -839,6 +855,7 @@ private fun KeywordField(
     onChange: (MatchMode, String, String, String) -> Unit,
 ) {
     OutlinedTextField(
+        shape = PickMsgShape.control,
         value = value,
         onValueChange = { onChange(mode, it, "", "") },
         modifier = Modifier.fillMaxWidth(),
@@ -869,19 +886,19 @@ private fun FormatOpDialog(onConfirm: (FormatOp) -> Unit, onDismiss: () -> Unit)
         onDismissRequest = onDismiss,
         title = { Text("添加格式化操作") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                     FormatTarget.entries.forEach { t ->
-                        FilterChip(
+                        PickMsgFilterChip(
                             selected = target == t,
                             onClick = { target = t },
                             label = { Text(if (t == FormatTarget.TITLE) "作用于标题" else "作用于内容") },
                         )
                     }
                 }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                     FormatOpType.entries.forEach { o ->
-                        FilterChip(
+                        PickMsgFilterChip(
                             selected = op == o,
                             onClick = { op = o },
                             label = {
@@ -899,6 +916,7 @@ private fun FormatOpDialog(onConfirm: (FormatOp) -> Unit, onDismiss: () -> Unit)
                 }
                 if (op == FormatOpType.REGEX_REPLACE || op == FormatOpType.REGEX_EXTRACT) {
                     OutlinedTextField(
+                        shape = PickMsgShape.control,
                         value = from,
                         onValueChange = { from = it },
                         modifier = Modifier.fillMaxWidth(),
@@ -908,6 +926,7 @@ private fun FormatOpDialog(onConfirm: (FormatOp) -> Unit, onDismiss: () -> Unit)
                 }
                 if (op == FormatOpType.REGEX_REPLACE) {
                     OutlinedTextField(
+                        shape = PickMsgShape.control,
                         value = to,
                         onValueChange = { to = it },
                         modifier = Modifier.fillMaxWidth(),
@@ -916,6 +935,7 @@ private fun FormatOpDialog(onConfirm: (FormatOp) -> Unit, onDismiss: () -> Unit)
                     )
                 } else if (op == FormatOpType.PREFIX || op == FormatOpType.SUFFIX) {
                     OutlinedTextField(
+                        shape = PickMsgShape.control,
                         value = to,
                         onValueChange = { to = it },
                         modifier = Modifier.fillMaxWidth(),

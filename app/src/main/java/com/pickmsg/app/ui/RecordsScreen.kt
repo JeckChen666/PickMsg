@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 
 package com.pickmsg.app.ui
 
@@ -13,44 +13,43 @@ import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,22 +58,26 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pickmsg.app.data.NotificationRecord
 import com.pickmsg.app.service.EventLog
 import com.pickmsg.app.service.NotificationCollectorService
-
-private enum class GroupMode(val label: String) { TIME("按时间"), APP("按应用"), RULE("按规则") }
-
-private sealed interface Row {
-    data class Header(val text: String) : Row
-    data class Item(val record: NotificationRecord) : Row
-}
+import com.pickmsg.app.ui.theme.JadeGlass
+import com.pickmsg.app.ui.theme.PickMsgBadge
+import com.pickmsg.app.ui.theme.PickMsgButton
+import com.pickmsg.app.ui.theme.PickMsgFilterChip
+import com.pickmsg.app.ui.theme.PickMsgOpacity
+import com.pickmsg.app.ui.theme.PickMsgScaffold
+import com.pickmsg.app.ui.theme.PickMsgShape
+import com.pickmsg.app.ui.theme.PickMsgSize
+import com.pickmsg.app.ui.theme.PickMsgSpace
+import com.pickmsg.app.ui.theme.PickMsgTopBar
 
 @Composable
 fun RecordsScreen(viewModel: MainViewModel) {
@@ -92,7 +95,8 @@ fun RecordsScreen(viewModel: MainViewModel) {
     var selectedRecord by remember { mutableStateOf<NotificationRecord?>(null) }
     var showClearDialog by remember { mutableStateOf(false) }
     var showLogs by remember { mutableStateOf(false) }
-    var groupMode by remember { mutableStateOf(GroupMode.TIME) }
+    var showMenu by remember { mutableStateOf(false) }
+    var groupMode by remember { mutableStateOf(RecordGroupMode.TIME) }
 
     val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -103,7 +107,7 @@ fun RecordsScreen(viewModel: MainViewModel) {
         }
     }
 
-    val current = selectedRecord
+    val current = selectedRecord?.let { selected -> records.firstOrNull { it.id == selected.id } ?: selected }
     if (current != null) {
         BackHandler { selectedRecord = null }
         DetailScreen(
@@ -118,46 +122,56 @@ fun RecordsScreen(viewModel: MainViewModel) {
         return
     }
 
-    val rows = remember(records, groupMode) { buildRows(records, groupMode) }
+    val rows = remember(records, groupMode) { buildRecordRows(records, groupMode) }
 
-    Scaffold(
+    PickMsgScaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("PickMsg") },
+            PickMsgTopBar(
+                title = "PickMsg",
                 actions = {
-                    IconButton(onClick = { showLogs = !showLogs }) {
-                        Icon(Icons.Default.Info, contentDescription = "运行日志")
-                    }
                     IconButton(onClick = viewModel::requestSnapshot) {
                         Icon(Icons.Default.Refresh, contentDescription = "读取通知栏快照")
                     }
-                    IconButton(onClick = { showClearDialog = true }) {
-                        Icon(Icons.Default.Delete, contentDescription = "清空记录")
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "更多操作")
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("发送测试通知") },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
+                                onClick = {
+                                    showMenu = false
+                                    val needsPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+                                        PackageManager.PERMISSION_GRANTED
+                                    if (needsPermission) {
+                                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                    } else {
+                                        viewModel.sendTestNotification()
+                                    }
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(if (showLogs) "收起运行日志" else "运行日志") },
+                                leadingIcon = { Icon(Icons.Default.Info, contentDescription = null) },
+                                onClick = { showMenu = false; showLogs = !showLogs },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("清空记录", color = MaterialTheme.colorScheme.error) },
+                                leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
+                                onClick = { showMenu = false; showClearDialog = true },
+                            )
+                        }
                     }
                 },
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = {
-                    val needsPermission = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
-                        PackageManager.PERMISSION_GRANTED
-                    if (needsPermission) {
-                        permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else {
-                        viewModel.sendTestNotification()
-                    }
-                },
-                icon = { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null) },
-                text = { Text("发送测试通知") },
             )
         },
     ) { padding ->
         LazyColumn(
             modifier = Modifier.padding(padding),
-            contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PickMsgSpace.pagePadding,
+            verticalArrangement = Arrangement.spacedBy(PickMsgSpace.listGap),
         ) {
             item {
                 StatusCard(
@@ -179,15 +193,29 @@ fun RecordsScreen(viewModel: MainViewModel) {
                     value = query,
                     onValueChange = viewModel::setQuery,
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("搜索标题 / 内容 / 应用") },
+                    placeholder = { Text("搜索通知") },
+                    shape = PickMsgShape.pill,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = PickMsgOpacity.glass),
+                        focusedContainerColor = MaterialTheme.colorScheme.surface.copy(alpha = PickMsgOpacity.field),
+                        unfocusedBorderColor = MaterialTheme.colorScheme.surface,
+                    ),
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.setQuery("") }) {
+                                Icon(Icons.Default.Close, contentDescription = "清除搜索")
+                            }
+                        }
+                    },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     singleLine = true,
                 )
             }
             item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GroupMode.entries.forEach { mode ->
-                        FilterChip(
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                    items(RecordGroupMode.entries) { mode ->
+                        PickMsgFilterChip(
+                            prominent = true,
                             selected = groupMode == mode,
                             onClick = { groupMode = mode },
                             label = { Text(mode.label) },
@@ -215,15 +243,15 @@ fun RecordsScreen(viewModel: MainViewModel) {
             }
             rows.forEach { row ->
                 when (row) {
-                    is Row.Header -> item(key = "header_${row.text}") {
+                    is RecordRow.Header -> item(key = "header_${row.key}") {
                         Text(
                             row.text,
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(top = 8.dp),
+                            modifier = Modifier.padding(top = PickMsgSpace.sm),
                         )
                     }
-                    is Row.Item -> item(key = "record_${row.record.id}") {
+                    is RecordRow.Item -> item(key = "record_${row.record.id}") {
                         RecordItem(record = row.record, onClick = { selectedRecord = row.record })
                     }
                 }
@@ -249,27 +277,6 @@ fun RecordsScreen(viewModel: MainViewModel) {
     }
 }
 
-private fun buildRows(records: List<NotificationRecord>, mode: GroupMode): List<Row> {
-    if (mode == GroupMode.TIME) return records.map { Row.Item(it) }
-    val keyOf: (NotificationRecord) -> String = when (mode) {
-        GroupMode.TIME -> fun(_: NotificationRecord) = ""
-        GroupMode.APP -> fun(record: NotificationRecord) = record.appLabel
-        GroupMode.RULE -> fun(record: NotificationRecord) = record.ruleName.ifBlank { "未命中规则" }
-    }
-    val rows = mutableListOf<Row>()
-    var lastKey: String? = null
-    records.forEach { record ->
-        val key = keyOf(record)
-        if (key != lastKey) {
-            val count = records.count { keyOf(it) == key }
-            rows += Row.Header("$key · $count")
-            lastKey = key
-        }
-        rows += Row.Item(record)
-    }
-    return rows
-}
-
 @Composable
 private fun StatusCard(
     listenerEnabled: Boolean,
@@ -281,49 +288,53 @@ private fun StatusCard(
     onOpenSettings: () -> Unit,
     onTogglePaused: () -> Unit,
 ) {
-    val containerColor = when {
-        !listenerEnabled -> MaterialTheme.colorScheme.errorContainer
-        paused -> MaterialTheme.colorScheme.tertiaryContainer
-        else -> MaterialTheme.colorScheme.primaryContainer
+    val statusColor = when {
+        !listenerEnabled -> MaterialTheme.colorScheme.error
+        !connected || paused -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.primary
     }
     val headline = when {
-        !listenerEnabled -> "未授予通知使用权"
-        !connected -> "已授权，等待系统连接服务…"
+        !listenerEnabled -> "需要通知授权"
+        !connected -> "等待服务连接"
         paused -> "采集已暂停"
-        else -> "正在采集通知"
+        else -> "正在采集"
     }
-    Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = containerColor)) {
-        Column(modifier = Modifier.padding(16.dp)) {
+    JadeGlass(modifier = Modifier.fillMaxWidth(), emphasized = true) {
+        Column(modifier = Modifier.padding(PickMsgSpace.card)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Notifications, contentDescription = null)
-                Spacer(modifier = Modifier.width(12.dp))
+                Surface(shape = PickMsgShape.pill, color = statusColor.copy(alpha = PickMsgOpacity.tint)) {
+                    Icon(Icons.Default.Notifications, contentDescription = null, tint = statusColor, modifier = Modifier.padding(PickMsgSpace.sm).size(PickMsgSize.iconSmall))
+                }
+                Spacer(modifier = Modifier.width(PickMsgSpace.md))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(headline, style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        "通知使用权：${if (listenerEnabled) "已授权" else "未授权"} · " +
-                            "服务：${if (connected) "已连接" else "未连接"}",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    if (listenerEnabled && !connected) {
+                        Text("请检查系统通知使用权", style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 if (listenerEnabled) {
-                    Switch(checked = !paused, onCheckedChange = { onTogglePaused() })
+                    Switch(checked = !paused, onCheckedChange = { onTogglePaused() },
+                        modifier = Modifier.semantics { contentDescription = "通知采集" })
                 }
             }
             if (!listenerEnabled) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
+                Spacer(modifier = Modifier.height(PickMsgSpace.md))
+                PickMsgButton(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
                     Text("前往系统设置授权")
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(PickMsgSpace.xs))
                 Text(
                     "在“通知使用权”中找到 PickMsg 并允许读取通知",
                     style = MaterialTheme.typography.bodySmall,
                 )
+            } else if (!connected) {
+                TextButton(onClick = onOpenSettings) { Text("检查通知授权") }
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                StatItem(label = "总计", value = totalCount)
+            Spacer(modifier = Modifier.height(PickMsgSpace.lg))
+            FlowRow(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround, verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                 StatItem(label = "今日", value = todayCount)
+                StatItem(label = "总计", value = totalCount)
                 StatItem(label = "应用", value = appCount)
             }
         }
@@ -333,12 +344,12 @@ private fun StatusCard(
 @Composable
 private fun StatItem(label: String, value: Int) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             value.toString(),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
         )
-        Text(label, style = MaterialTheme.typography.labelMedium)
     }
 }
 
@@ -349,16 +360,16 @@ private fun AppFilterRow(
     selectedPackage: String?,
     onSelect: (String?) -> Unit,
 ) {
-    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    LazyRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
         item {
-            FilterChip(
+            PickMsgFilterChip(
                 selected = selectedPackage == null,
                 onClick = { onSelect(null) },
                 label = { Text("全部 $totalCount") },
             )
         }
         items(appCounts, key = { it.packageName }) { app ->
-            FilterChip(
+            PickMsgFilterChip(
                 selected = selectedPackage == app.packageName,
                 onClick = { onSelect(app.packageName) },
                 label = { Text("${app.appLabel} ${app.count}") },
@@ -369,48 +380,57 @@ private fun AppFilterRow(
 
 @Composable
 private fun RecordItem(record: NotificationRecord, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
-        Column(
-            modifier = Modifier.padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    record.appLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(formatTime(record.postTime), style = MaterialTheme.typography.labelSmall)
+    JadeGlass(modifier = Modifier.fillMaxWidth(), onClick = onClick) {
+        Row(modifier = Modifier.padding(PickMsgSpace.card), horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.md)) {
+            Surface(shape = PickMsgShape.icon, color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = PickMsgOpacity.glass)) {
+                Box(Modifier.size(PickMsgSize.avatar), contentAlignment = Alignment.Center) {
+                    Text(record.appLabel.take(1), color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                }
             }
-            if (record.title.isNotEmpty()) {
-                Text(
-                    record.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (record.text.isNotEmpty()) {
-                Text(
-                    record.text,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            val tags = buildList {
-                if (record.isPinned) add("置顶")
-                if (record.ruleName.isNotEmpty()) add("规则:${record.ruleName}")
-                if (record.isOngoing) add("常驻")
-                if (record.isSensitive) add("敏感占位")
-                if (record.source == NotificationRecord.SOURCE_SNAPSHOT) add("快照")
-            }
-            if (tags.isNotEmpty()) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    tags.forEach { TagChip(it) }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(PickMsgSpace.xs),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        record.appLabel,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(formatTime(record.postTime), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (record.title.isNotEmpty()) {
+                    Text(
+                        record.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                if (record.text.isNotEmpty()) {
+                    Text(
+                        record.text,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                val tags = buildList {
+                    if (record.isPinned) add("置顶")
+                    if (record.ruleName.isNotEmpty()) add("规则:${record.ruleName}")
+                    if (record.isOngoing) add("常驻")
+                    if (record.isSensitive) add("敏感占位")
+                    if (record.source == NotificationRecord.SOURCE_SNAPSHOT) add("快照")
+                }
+                if (tags.isNotEmpty()) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.xs)) {
+                        tags.forEach { PickMsgBadge(it) }
+                    }
                 }
             }
         }
@@ -418,40 +438,29 @@ private fun RecordItem(record: NotificationRecord, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TagChip(text: String) {
-    Surface(shape = RoundedCornerShape(4.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-        )
-    }
-}
-
-@Composable
 private fun EmptyState(listenerEnabled: Boolean, hasFilter: Boolean) {
     Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 48.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = PickMsgSpace.empty),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(PickMsgSpace.sm))
         Text(
             when {
                 hasFilter -> "没有匹配的记录"
                 !listenerEnabled -> "授权后，新到的通知会自动出现在这里"
-                else -> "暂无记录，点击右下角发送一条测试通知试试"
+                else -> "暂无通知，可在右上角菜单发送测试通知"
             },
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.outline,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
 @Composable
 private fun LogCard(logs: List<String>) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    JadeGlass(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(PickMsgSpace.card), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.micro)) {
             Text("运行日志", style = MaterialTheme.typography.titleSmall)
             if (logs.isEmpty()) {
                 Text("暂无日志", style = MaterialTheme.typography.bodySmall)

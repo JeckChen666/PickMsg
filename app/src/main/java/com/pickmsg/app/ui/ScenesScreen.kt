@@ -2,12 +2,12 @@
 
 package com.pickmsg.app.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -24,24 +24,16 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,13 +41,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pickmsg.app.data.NetworkKind
 import com.pickmsg.app.data.Scene
 import com.pickmsg.app.data.SceneCondition
 import com.pickmsg.app.data.SceneConditionType
+import com.pickmsg.app.ui.theme.PickMsgDeleteAction
+import com.pickmsg.app.ui.theme.PickMsgFilterChip
+import com.pickmsg.app.ui.theme.PickMsgFloatingActionButton
+import com.pickmsg.app.ui.theme.PickMsgManagementCard
+import com.pickmsg.app.ui.theme.PickMsgOutlinedButton
+import com.pickmsg.app.ui.theme.PickMsgScaffold
+import com.pickmsg.app.ui.theme.PickMsgShape
+import com.pickmsg.app.ui.theme.PickMsgSpace
+import com.pickmsg.app.ui.theme.PickMsgTopBar
 
 @Composable
 fun ScenesScreen(viewModel: ScenesViewModel) {
@@ -72,61 +72,43 @@ fun ScenesScreen(viewModel: ScenesViewModel) {
         return
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("场景") }) },
+    PickMsgScaffold(
+        topBar = { PickMsgTopBar(title = "场景") },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
+            PickMsgFloatingActionButton(
                 onClick = { creating = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("新建场景") },
+                label = "新建场景",
             )
         },
     ) { padding ->
         if (scenes.isEmpty()) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(32.dp),
+                modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(PickMsgSpace.xxl),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
                 Icon(Icons.Default.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(PickMsgSpace.sm))
                 Text(
-                    "还没有场景\n场景 = 网络 / 时间段 / 电量 / 星期 / 屏幕状态的组合，\n规则可绑定场景来限定生效时段",
+                    "还没有场景\n按时间、网络等条件控制规则何时生效",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
             LazyColumn(
                 modifier = Modifier.padding(padding),
-                contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 96.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PickMsgSpace.listWithFabPadding,
+                verticalArrangement = Arrangement.spacedBy(PickMsgSpace.listGap),
             ) {
                 items(scenes, key = { it.id }) { scene ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Row(
-                            modifier = Modifier.padding(start = 16.dp, end = 8.dp, top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(scene.name, style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    scene.conditions.joinToString(" 且 ") { conditionSummary(it) }.ifBlank { "无条件" },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.outline,
-                                    maxLines = 3,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                            }
-                            Switch(checked = scene.enable, onCheckedChange = { viewModel.toggleEnable(scene) })
-                        }
-                        Row(modifier = Modifier.padding(start = 16.dp, bottom = 10.dp)) {
-                            TextButton(
-                                onClick = { editing = scene },
-                                contentPadding = PaddingValues(0.dp),
-                            ) { Text("编辑", style = MaterialTheme.typography.labelMedium) }
-                        }
-                    }
+                    PickMsgManagementCard(
+                            title = scene.name,
+                            summary = scene.conditions.joinToString(" 且 ") { conditionSummary(it) }.ifBlank { "不限条件" },
+                            enabled = scene.enable, onToggle = { viewModel.toggleEnable(scene) },
+                            onEdit = { editing = scene },
+                        )
                 }
             }
         }
@@ -158,16 +140,18 @@ fun weekdayBits(mask: Int): String {
 
 @Composable
 private fun SceneEditScreen(existing: Scene?, viewModel: ScenesViewModel, onClose: () -> Unit) {
+    BackHandler(onBack = onClose)
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var nameError by remember { mutableStateOf(false) }
     var enable by remember { mutableStateOf(existing?.enable ?: true) }
     var conditions by remember { mutableStateOf(existing?.conditions ?: emptyList()) }
     var showAddDialog by remember { mutableStateOf(false) }
 
-    Scaffold(
+    PickMsgScaffold(
+        secondaryPage = true,
         topBar = {
-            TopAppBar(
-                title = { Text(if (existing == null) "新建场景" else "编辑场景") },
+            PickMsgTopBar(
+                title = if (existing == null) "新建场景" else "编辑场景",
                 navigationIcon = {
                     IconButton(onClick = onClose) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "放弃")
@@ -175,10 +159,11 @@ private fun SceneEditScreen(existing: Scene?, viewModel: ScenesViewModel, onClos
                 },
                 actions = {
                     if (existing != null) {
-                        IconButton(onClick = {
-                            viewModel.delete(existing)
-                            onClose()
-                        }) { Icon(Icons.Default.Delete, contentDescription = "删除场景") }
+                        PickMsgDeleteAction(
+                            label = "删除场景",
+                            message = "删除后无法恢复，请确认不再需要此场景。",
+                            onConfirm = { viewModel.delete(existing); onClose() },
+                        )
                     }
                     IconButton(onClick = {
                         if (name.isBlank()) {
@@ -203,10 +188,11 @@ private fun SceneEditScreen(existing: Scene?, viewModel: ScenesViewModel, onClos
             modifier = Modifier
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(PickMsgSpace.pagePadding),
+            verticalArrangement = Arrangement.spacedBy(PickMsgSpace.fieldGap),
         ) {
             OutlinedTextField(
+                shape = PickMsgShape.control,
                 value = name,
                 onValueChange = { name = it; nameError = false },
                 modifier = Modifier.fillMaxWidth(),
@@ -221,10 +207,10 @@ private fun SceneEditScreen(existing: Scene?, viewModel: ScenesViewModel, onClos
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = enable, onCheckedChange = { enable = it })
-                Text("启用该场景（未启用的场景对规则求值时跳过）", modifier = Modifier.clickable { enable = !enable })
+                Text("启用场景", modifier = Modifier.clickable { enable = !enable })
             }
 
-            SectionTitle("条件（同场景内为“且”关系）")
+            SectionTitle("同时满足以下条件")
             if (conditions.isEmpty()) {
                 Text("无", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
             } else {
@@ -243,7 +229,7 @@ private fun SceneEditScreen(existing: Scene?, viewModel: ScenesViewModel, onClos
                     }
                 }
             }
-            OutlinedButton(onClick = { showAddDialog = true }) {
+            PickMsgOutlinedButton(onClick = { showAddDialog = true }) {
                 Icon(Icons.Default.Add, contentDescription = null, Modifier.width(18.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("添加条件")
@@ -279,10 +265,10 @@ private fun ConditionDialog(onConfirm: (SceneCondition) -> Unit, onDismiss: () -
         onDismissRequest = onDismiss,
         title = { Text("添加条件") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                     SceneConditionType.entries.forEach { t ->
-                        FilterChip(
+                        PickMsgFilterChip(
                             selected = type == t,
                             onClick = { type = t },
                             label = {
@@ -301,9 +287,9 @@ private fun ConditionDialog(onConfirm: (SceneCondition) -> Unit, onDismiss: () -
                 }
                 when (type) {
                     SceneConditionType.NETWORK -> {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                             NetworkKind.entries.forEach { kind ->
-                                FilterChip(
+                                PickMsgFilterChip(
                                     selected = kind in kinds,
                                     onClick = {
                                         kinds = if (kind in kinds) kinds - kind else kinds + kind
@@ -322,21 +308,24 @@ private fun ConditionDialog(onConfirm: (SceneCondition) -> Unit, onDismiss: () -
                             }
                         }
                         OutlinedTextField(
+                            shape = PickMsgShape.control,
                             value = ssids,
                             onValueChange = { ssids = it },
                             modifier = Modifier.fillMaxWidth(),
-                            label = { Text("指定 SSID（可选，逗号分隔）") },
+                            label = { Text("Wi-Fi 名称（可选）") },
                             singleLine = true,
                         )
                     }
                     SceneConditionType.TIME_RANGE -> {
                         OutlinedTextField(
+                            shape = PickMsgShape.control,
                             value = startTime,
                             onValueChange = { startTime = it },
                             label = { Text("开始 HH:mm") },
                             singleLine = true,
                         )
                         OutlinedTextField(
+                            shape = PickMsgShape.control,
                             value = endTime,
                             onValueChange = { endTime = it },
                             label = { Text("结束 HH:mm") },
@@ -345,12 +334,14 @@ private fun ConditionDialog(onConfirm: (SceneCondition) -> Unit, onDismiss: () -
                     }
                     SceneConditionType.BATTERY -> {
                         OutlinedTextField(
+                            shape = PickMsgShape.control,
                             value = minBattery,
                             onValueChange = { minBattery = it.filter { c -> c.isDigit() }.take(3) },
                             label = { Text("最低电量 %") },
                             singleLine = true,
                         )
                         OutlinedTextField(
+                            shape = PickMsgShape.control,
                             value = maxBattery,
                             onValueChange = { maxBattery = it.filter { c -> c.isDigit() }.take(3) },
                             label = { Text("最高电量 %") },
@@ -361,11 +352,11 @@ private fun ConditionDialog(onConfirm: (SceneCondition) -> Unit, onDismiss: () -
                         WeekdayChips(weekdays) { weekdays = it }
                     }
                     SceneConditionType.SCREEN -> {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(selected = screenOn, onClick = { screenOn = true }, label = { Text("亮屏") })
-                            FilterChip(selected = !screenOn, onClick = { screenOn = false }, label = { Text("灭屏") })
-                            FilterChip(selected = !landscape, onClick = { landscape = false }, label = { Text("竖屏") })
-                            FilterChip(selected = landscape, onClick = { landscape = true }, label = { Text("横屏") })
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                            PickMsgFilterChip(selected = screenOn, onClick = { screenOn = true }, label = { Text("亮屏") })
+                            PickMsgFilterChip(selected = !screenOn, onClick = { screenOn = false }, label = { Text("灭屏") })
+                            PickMsgFilterChip(selected = !landscape, onClick = { landscape = false }, label = { Text("竖屏") })
+                            PickMsgFilterChip(selected = landscape, onClick = { landscape = true }, label = { Text("横屏") })
                         }
                     }
                 }
@@ -398,10 +389,10 @@ private fun ConditionDialog(onConfirm: (SceneCondition) -> Unit, onDismiss: () -
 @Composable
 fun WeekdayChips(mask: Int, onChange: (Int) -> Unit) {
     val names = listOf("一", "二", "三", "四", "五", "六", "日")
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
         names.forEachIndexed { index, label ->
             val bit = 1 shl index
-            FilterChip(
+            PickMsgFilterChip(
                 selected = (mask and bit) != 0,
                 onClick = { onChange(mask xor bit) },
                 label = { Text("周$label") },
@@ -414,8 +405,8 @@ fun WeekdayChips(mask: Int, onChange: (Int) -> Unit) {
 private fun SectionTitle(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.titleSmall,
+        style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 8.dp),
+        modifier = Modifier.padding(top = PickMsgSpace.sectionGap - PickMsgSpace.fieldGap),
     )
 }

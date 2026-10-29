@@ -2,9 +2,13 @@
 
 package com.pickmsg.app.ui
 
+import androidx.compose.foundation.rememberScrollState
+
+import androidx.compose.foundation.verticalScroll
+
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,24 +20,25 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pickmsg.app.service.NotificationCollectorService
+import com.pickmsg.app.ui.theme.PickMsgBadge
+import com.pickmsg.app.ui.theme.PickMsgButton
+import com.pickmsg.app.ui.theme.PickMsgCard
+import com.pickmsg.app.ui.theme.PickMsgScaffold
+import com.pickmsg.app.ui.theme.PickMsgSpace
+import com.pickmsg.app.ui.theme.PickMsgTopBar
 
 /**
  * 常驻通知管理：
@@ -41,6 +46,7 @@ import com.pickmsg.app.service.NotificationCollectorService
  */
 @Composable
 fun OngoingScreen(onBack: () -> Unit) {
+    BackHandler(onBack = onBack)
     val activeList by NotificationCollectorService.activeList.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
@@ -49,10 +55,11 @@ fun OngoingScreen(onBack: () -> Unit) {
         }
     }
 
-    Scaffold(
+    PickMsgScaffold(
+        secondaryPage = true,
         topBar = {
-            TopAppBar(
-                title = { Text("常驻通知管理") },
+            PickMsgTopBar(
+                title = "常驻通知管理",
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
@@ -68,7 +75,7 @@ fun OngoingScreen(onBack: () -> Unit) {
     ) { padding ->
         if (activeList.isEmpty()) {
             Column(
-                modifier = Modifier.fillMaxSize().padding(padding).padding(32.dp),
+                modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(PickMsgSpace.xxl),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
@@ -79,18 +86,18 @@ fun OngoingScreen(onBack: () -> Unit) {
                         "通知栏没有活跃通知"
                     },
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.outline,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         } else {
             LazyColumn(
                 modifier = Modifier.padding(padding),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PickMsgSpace.pagePadding,
+                verticalArrangement = Arrangement.spacedBy(PickMsgSpace.listGap),
             ) {
                 items(activeList, key = { it.key }) { item ->
-                    Card(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    PickMsgCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(PickMsgSpace.card), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.xs)) {
                             Row {
                                 Text(
                                     item.appLabel,
@@ -99,40 +106,24 @@ fun OngoingScreen(onBack: () -> Unit) {
                                     modifier = Modifier.weight(1f),
                                 )
                                 if (item.isHidden) {
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                                    ) {
-                                        Text(
-                                            "已隐藏",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        )
-                                    }
+                                    PickMsgBadge("已隐藏", warning = true)
                                 } else if (item.isOngoing) {
-                                    Surface(
-                                        color = MaterialTheme.colorScheme.secondaryContainer,
-                                    ) {
-                                        Text(
-                                            "常驻",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                        )
-                                    }
+                                    PickMsgBadge("常驻")
                                 }
                             }
                             if (item.title.isNotEmpty()) {
-                                Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 1)
+                                Text(item.title, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
                             if (item.text.isNotEmpty()) {
-                                Text(item.text, style = MaterialTheme.typography.bodySmall, maxLines = 2)
+                                Text(item.text, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                                 if (item.isHidden) {
-                                    Button(onClick = { NotificationCollectorService.restoreOngoing(item.key) }) {
+                                    PickMsgButton(onClick = { NotificationCollectorService.restoreOngoing(item.key) }) {
                                         Text("恢复显示")
                                     }
                                 } else {
-                                    Button(onClick = { NotificationCollectorService.hideOngoing(item.key) }) {
+                                    PickMsgButton(onClick = { NotificationCollectorService.hideOngoing(item.key) }) {
                                         Text("隐藏（可恢复）")
                                     }
                                 }
@@ -141,11 +132,11 @@ fun OngoingScreen(onBack: () -> Unit) {
                     }
                 }
                 item {
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(PickMsgSpace.xl))
                     Text(
-                        "“隐藏”使用一年期 snooze 实现：通知从通知栏消失但随时可恢复，比直接清除更安全。",
+                        "隐藏后可在此恢复显示；应用重启后，恢复能力取决于系统通知状态。",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outline,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }

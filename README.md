@@ -1,126 +1,100 @@
 # PickMsg
 
-**安卓系统通知采集与规则过滤工具** — 让每一条系统通知都被记录、可检索，并按你定义的规则自动移除、重发或转发。
+安卓通知采集与规则处理工具：记录、检索系统允许读取的通知，并按规则整理、提醒或转发。
+
+项目采用 [MIT 许可证](LICENSE) 开源。
 
 [![CI](https://github.com/JeckChen666/PickMsg/actions/workflows/ci.yml/badge.svg)](https://github.com/JeckChen666/PickMsg/actions/workflows/ci.yml)
 
-> 自用/开源项目：所有数据仅保存在本机；任何外发（Webhook/邮件/短信）只发生在你显式配置的转发动作里。
+支持 Android 8.0 及以上。采集记录默认保存在本机；配置的转发动作和 WebDAV 备份会向相应目标发送数据。
 
-| 采集中 | 规则列表 | 场景 | 计划 | 我的 |
+[文档导航](docs/README.md) · [构建与开发](docs/development.md) · [设计规范](docs/design/DESIGN_SYSTEM.md) · [验收报告](docs/design/acceptance/ACCEPTANCE.md)
+
+## 界面预览
+
+暖玉绿界面的实际运行截图（2026-10-29，Android 15 模拟器）。图中为验收测试数据，场景页展示空状态；点击图片可查看原图。
+
+| 通知 · 按应用分组 | 规则 · 长名称 | 场景 · 空状态 | 计划 | 我的 · 深色 |
 |---|---|---|---|---|
-| ![](docs/screenshots/02-collecting.png) | ![](docs/screenshots/05-rules.png) | ![](docs/screenshots/10-scenes.png) | ![](docs/screenshots/11-plan.png) | ![](docs/screenshots/07-detail-rule-hit.png) |
+| ![通知列表与应用分组](docs/design/acceptance/07-app-groups.png) | ![规则卡片与独立开关](docs/design/acceptance/05-long-rule.png) | ![场景空状态与创建入口](docs/design/acceptance/02-empty-场景.png) | ![计划列表与授权提示](docs/design/acceptance/20-plan-populated.png) | ![深色我的页面与服务工具](docs/design/acceptance/23-dark-settings.png) |
 
-## 功能
+<details>
+<summary>查看深色模式、通知详情与大字体适配</summary>
 
-### 采集
+| 深色通知列表 | 深色通知详情 | 窄屏 · 2 倍字体 |
+|---|---|---|
+| ![深色通知列表](docs/design/acceptance/19-dark-notifications.png) | ![深色详情正文与诊断信息入口](docs/design/acceptance/22-dark-detail.png) | ![大字体下整行输入框与换行按钮](docs/design/acceptance/24-large-tools.png) |
 
-- **全量监听**：基于系统 `NotificationListenerService`（通知使用权授权），回调内零耗时、全异步协程管道
-- **内容提取四层降级**：标准 extras → 展开长文本 → 多消息行去重合并 → 自定义布局离屏解析兜底
-- **敏感通知保护**：系统脱敏占位符（锁屏隐私/验证码脱敏）识别后只记录不外发，避免把占位文本当真内容转发
-- **去重**：`通知key + postTime` 内存单槽 + 数据库唯一索引双保险
-- **通知栏快照**：连接时与手动触发时批量采集当前在栏通知；常驻通知可"一年期 snooze"无痕隐藏、随时恢复
-- **暂停 ≠ 断开**：暂停采集时服务保持连接，通知栏磁贴/前台服务按钮一键切换
+</details>
 
-### 规则引擎
+完整检查范围与截图见 [界面精修验收报告](docs/design/acceptance/ACCEPTANCE.md)。
 
-- **应用匹配**：全部 / 仅选中（白名单）/ 排除选中（黑名单），分身/工作资料按独立应用键区分
-- **文本匹配八模式**：包含任一 / 全部包含 / 不包含任一 / 均不包含 / A且B / 正则整串匹配 / 正则提取 / 无条件（正则带编译缓存）
-- **标题与内容**：且 / 或 组合；**多规则**同时命中互不影响
-- **生效场景**：网络（含指定 SSID）/ 时间段（支持跨天）/ 电量区间 / 星期 / 屏幕状态，任一或全部满足
-- **热更新**：规则保存/开关即时生效，无需重启服务
-- **内嵌测试**：编辑规则时输入样例即时验证各侧命中结果
+## 开始使用
 
-### 动作（11 种）
+1. 从 [Releases](https://github.com/JeckChen666/PickMsg/releases) 获取安装包，或按 [开发文档](docs/development.md) 自行构建。
+2. 首次打开，在通知页进入系统设置，授予 **通知使用权**。Android 13 及以上发送测试通知时还需允许应用发送通知。
+3. 返回应用，确认显示“正在采集”；在右上角更多菜单中发送测试通知，检查记录是否出现。
+4. 按需创建规则；先用编辑页中的样例测试确认匹配结果，再配置动作。场景用于限制规则生效条件，计划用于定时发送本地通知。
+
+需要持续采集时，在“我的”中检查后台运行设置，并参考 [真机测试清单](docs/real-device-testing.md) 完成设备侧验证。覆盖安装应使用相同签名，不要为解决签名冲突直接卸载旧版。
+
+## 主要能力
+
+| 页面 | 用途 |
+| --- | --- |
+| 通知 | 按时间、应用或规则查看记录，搜索、置顶、查看详情与诊断信息 |
+| 规则 | 设置应用和文本匹配条件，组合整理、提醒及转发动作 |
+| 场景 | 通过网络、时间、电量、星期、屏幕状态限制规则生效 |
+| 计划 | 按时间和星期发送本地提醒；准时触发受系统权限影响 |
+| 我的 | 管理后台运行、常驻通知、保留天数、导出、备份、邮件账号与统计 |
+
+### 采集与记录
+
+- 暂停采集不主动断开监听服务；可通过应用、快捷磁贴或常驻通知切换状态。
+- 支持读取当前通知栏快照、去重、关键词搜索和置顶；定期清理会保留置顶记录。
+- 系统脱敏的敏感占位通知只记录、不外发；无法绕过系统限制恢复原文。
+- 常驻通知可以隐藏；恢复依赖当前会话缓存，不能保证应用重启后仍能立即恢复。
+- 支持 CSV 导出、今日/总量统计、近 7 天趋势与规则命中统计；另提供桌面小组件。
+
+### 规则与动作
+
+应用范围支持全部、仅选中和排除选中。文本匹配支持包含任一、全部包含、不包含任一、均不包含、A 且 B、正则整串匹配、正则提取和无条件；标题与内容可按“且”或“或”组合。
+
+一个场景内的条件需要全部满足，且至少应有一项条件；绑定多个场景时，规则可选择任一或全部满足。规则保存及开关变更会热更新，编辑页支持样例测试。
+
+场景限制只考虑启用中的绑定场景；未绑定场景或绑定场景均未启用时，当前实现不限制规则执行。
 
 | 整理 | 提醒 | 转发 |
-|---|---|---|
-| 移除通知（可延迟） | 播放铃声（可强制走闹钟通道） | Webhook（企微/飞书/钉钉/Slack/Telegram 预设） |
-| 替换重发（保留原通知点击跳转） | 震动（自定义波形） | 邮件（SMTP 直连，全局账号配置） |
-| 复制到剪贴板 | TTS 语音播报 | 短信转发（发送结果回写） |
-| 打开原通知目标 | | 手环转发（蓝牙检查 + 重复提醒） |
+| --- | --- | --- |
+| 移除通知，可延迟 | 铃声 | Webhook：企微、飞书、钉钉、Slack、Telegram 等预设 |
+| 替换重发，保留原点击目标 | 震动 | 邮件 |
+| 复制到剪贴板 | 语音播报 | 短信 |
+| 打开原通知目标 | | 手环提醒 |
 
-- 动作模板支持占位符：`{app} {title} {content} {time} {date} {week} {mobile}`
-- 格式化管线（正则替换/前后缀/正则提取）先于动作执行，一处格式化处处生效
-- 每个动作独立 try-catch，单个失败不影响其他；发送类动作共享重试框架（5s/10s/15s/15s/15s）
+多个规则可同时命中。内容格式化支持正则替换、前后缀及正则提取，在动作执行前处理；动作模板支持 `{app}`、`{title}`、`{content}`、`{time}`、`{date}`、`{week}`、`{mobile}`。
 
-### 记录与增值
+### 备份范围
 
-- 记录列表：按时间/应用/规则三视图分组、关键词搜索、置顶、详情全字段可复制、CSV 导出
-- 定期清理：保留天数可配，置顶记录豁免，分批删除不卡顿
-- 统计：今日/总计、近 7 天柱状图、规则命中 TOP
-- Glance 桌面小组件（2×1）：今日通知数 + 高频应用
-- 备份：本地 JSON 导出/导入（规则+场景+计划任务）、WebDAV 上传/下载、周期自动备份
-- 运行日志：进程内滚动日志 + logcat，采集/命中/跳过全链路可查
+本地 JSON 和 WebDAV 备份包含 **规则、场景、计划任务**，不包含通知历史。通知历史可单独导出 CSV；CSV 导出不等同于可导入恢复的备份。远程备份配置位于“我的 → 备份与恢复”。
 
-## 下载安装
+## 构建与验证
 
-从 [GitHub Releases](https://github.com/JeckChen666/PickMsg/releases) 下载带签名的 release APK 安装。
-首次使用需在系统设置中授予「通知使用权」（应用内有引导跳转），Android 13+ 发送测试通知会请求通知权限。
-
-自行构建见下节；`local.properties` 指向本机 Android SDK，构建产物在 `app/build/outputs/apk/`。
-
-## 构建
+需要 JDK 17、Android SDK API 35，并在 `local.properties` 中配置 SDK 路径：
 
 ```bash
-git clone https://github.com/JeckChen666/PickMsg.git
-cd PickMsg
-# 需要 JDK 17 与 Android SDK（API 35）；IDE 打开或直接：
-./gradlew :app:assembleDebug      # 调试 APK
-./gradlew :app:testDebugUnitTest  # 单元测试（45 个）
-```
-
-正式签名（自用更新安装需签名一致）：在仓库根目录创建 `keystore.properties`：
-
-```properties
-storeFile=keystore/pickmsg-release.jks
-storePassword=你的密码
-keyAlias=pickmsg
-keyPassword=你的密码
-```
-
-并把 keystore 文件放到对应位置（两者均已在 `.gitignore` 中，勿提交）。配置后 `assembleRelease` 自动签名；
-没有该配置时 release 构建回退 debug 签名，便于 CI 无密钥构建。
-
-## 技术栈与结构
-
-Kotlin 2.0 · Compose (Material 3) · Room + KSP · WorkManager · Glance · JavaMail-Android · minSdk 26 / target 35
-
-```
-app/src/main/java/com/pickmsg/app/
-├── data/       Room v3 实体/DAO/仓库、设置存储、备份序列化、WebDAV/CSV
-├── service/    监听服务、规则引擎（匹配/格式化/占位符）、动作执行器、
-│               场景求值、转发通道、计划任务调度、磁贴
-├── work/       自动备份 Worker
-├── widget/     Glance 小组件
-└── ui/         五 Tab Compose 界面（通知/规则/场景/计划/我的）
-```
-
-数据库迁移链 v1→v2→v3 保留用户数据；规则的动作配置采用 JSON 单列设计（便于整体导入导出）。
-
-## 测试
-
-45 个单元测试覆盖规则匹配八模式、格式化管线、模板占位符、备份序列化往返、CSV 转义与敏感占位符判定：
-
-```bash
+./gradlew :app:assembleDebug
 ./gradlew :app:testDebugUnitTest
 ```
 
-端到端行为（授权流程、真实通知采集、通知栏移除、计划任务触发、前后台切换）在 Android 15 模拟器完成过统一测试。
-**真机注意事项**见 [docs/real-device-testing.md](docs/real-device-testing.md) — 国产 ROM 的保活与自启设置是这类工具的生死线。
+调试包输出到 `app/build/outputs/apk/debug/app-debug.apk`。环境准备、正式签名、CI 和实现说明见 [构建与开发](docs/development.md)。
 
-## 实现笔记（踩坑实录）
+最近一次界面验收记录为 **2026-10-29**：Debug 构建成功，50 项单元测试通过，主要界面流程及部分深色/大字体/窄屏状态已验证。完整 Lint 仍有 10 个既有错误；真机 ROM、真实外发与备份不在这次验收通过范围内。详细证据与限制以 [验收报告](docs/design/acceptance/ACCEPTANCE.md) 为准。
 
-1. 标题/内容的组合方式默认必须"且"——默认"或"会让单边配置的规则（另一边为无条件）匹配所有通知
-2. Room 失效跟踪只认应用自身连接的写入，外部 sqlite 直写不触发热更新
-3. Android 15 会自动脱敏含验证码的通知（OTP 保护），监听器只能拿到占位文本
-4. 自身重发的通知会再次进入监听器，必须按包名短路，否则模板含关键词时无限重发
-5. JavaMail 双 jar 的 META-INF 冲突需在 `packaging.resources.excludes` 排除
-6. Glance 的 `provideGlance` 是成员方法；`provideContent` 才是顶层扩展
-7. snooze 隐藏的通知不再出现在 `getActiveNotifications`，恢复需会话内缓存通知 key
-8. 正则编译缓存的 `ConcurrentHashMap.getOrPut` 不能缓存 null（非法正则），否则 `putIfAbsent(key, null)` NPE——单元测试抓到的真 Bug
-9. 场景网络判定应按 transport 而非 `VALIDATED` 能力，门户 Wi-Fi（部分连接）在现实里很常见
-10. 前台服务通知渠道重要性必须 ≥ DEFAULT，否则通知栏不渲染操作按钮（渠道重要性创建后不可改，需用新渠道 ID）
-11. 系统会不定期主动重绑监听服务（毫秒级自恢复），无需惊慌；真正要防的是阻塞 binder 回调
+## 界面与维护
+
+应用使用“暖玉绿”设计体系。新增页面先阅读 [设计规范](docs/design/DESIGN_SYSTEM.md)，复用 `ui/theme/` 中的设计常量和组件；当前效果是柔光背景与半透明表面，不是实时背景模糊。
+
+概念稿、早期实现与旧截图保留作历史对照，不作为当前规范。各文档的定位及历史入口见 [文档导航](docs/README.md)。
 
 ## 许可
 

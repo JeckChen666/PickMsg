@@ -1,4 +1,4 @@
-@file:OptIn(ExperimentalMaterial3Api::class)
+@file:OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 
 package com.pickmsg.app.ui
 
@@ -8,35 +8,36 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +46,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pickmsg.app.data.SmtpConfig
 import com.pickmsg.app.data.WebDavConfig
-import com.pickmsg.app.service.NotificationCollectorService
+import com.pickmsg.app.ui.theme.PickMsgButton
+import com.pickmsg.app.ui.theme.PickMsgCard
+import com.pickmsg.app.ui.theme.PickMsgOutlinedButton
+import com.pickmsg.app.ui.theme.PickMsgScaffold
+import com.pickmsg.app.ui.theme.PickMsgShape
+import com.pickmsg.app.ui.theme.PickMsgSpace
+import com.pickmsg.app.ui.theme.PickMsgTopBar
 
 @Composable
 fun MineScreen(viewModel: MineViewModel) {
@@ -87,23 +94,22 @@ fun MineScreen(viewModel: MineViewModel) {
         return
     }
 
-    Scaffold(
-        topBar = { TopAppBar(title = { Text("我的") }) },
+    PickMsgScaffold(
+        topBar = { PickMsgTopBar(title = "我的") },
     ) { padding ->
         Column(
             modifier = Modifier
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
-                .padding(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+                .padding(PickMsgSpace.pagePadding),
+            verticalArrangement = Arrangement.spacedBy(PickMsgSpace.fieldGap),
         ) {
             message?.let {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                PickMsgCard(modifier = Modifier.fillMaxWidth()) {
                     Text(
                         it,
                         modifier = Modifier
-                            .padding(12.dp)
+                            .padding(PickMsgSpace.card)
                             .clickable { viewModel.clearMessage() },
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -122,7 +128,7 @@ fun MineScreen(viewModel: MineViewModel) {
                     Switch(checked = !paused, onCheckedChange = { viewModel.togglePaused() })
                 }
                 if (!listenerEnabled) {
-                    Button(onClick = { openListenerSettings(context) }, modifier = Modifier.fillMaxWidth()) {
+                    PickMsgButton(onClick = { openListenerSettings(context) }, modifier = Modifier.fillMaxWidth()) {
                         Text("前往系统设置授权")
                     }
                 }
@@ -132,73 +138,75 @@ fun MineScreen(viewModel: MineViewModel) {
                         onCheckedChange = { viewModel.setForegroundEnabled(it) },
                     )
                     Text(
-                        "前台服务常驻（Android 14+ 为 specialUse 类型，通知栏带暂停按钮）",
+                        "保持后台运行",
                         modifier = Modifier.weight(1f).clickable { viewModel.setForegroundEnabled(!foregroundEnabled) },
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 if (!viewModel.batteryOptimizationIgnored()) {
-                    OutlinedButton(onClick = viewModel::requestIgnoreBatteryOptimizations) {
-                        Text("申请电池优化豁免（降低被杀概率）")
+                    PickMsgOutlinedButton(onClick = viewModel::requestIgnoreBatteryOptimizations) {
+                        Text("允许后台持续运行")
                     }
                 }
             }
 
             SectionCard("工具") {
-                OutlinedButton(onClick = { showOngoingTool = true }, modifier = Modifier.fillMaxWidth()) {
+                PickMsgOutlinedButton(onClick = { showOngoingTool = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("常驻通知管理（隐藏 / 恢复）")
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                     OutlinedTextField(
+                        shape = PickMsgShape.control,
                         value = keepDays.toString(),
                         onValueChange = { value -> value.toIntOrNull()?.let { viewModel.setKeepDays(it.coerceIn(1, 365)) } },
-                        modifier = Modifier.width(120.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         label = { Text("保留天数") },
                         singleLine = true,
                     )
-                    OutlinedButton(onClick = viewModel::cleanupNow) { Text("立即清理") }
-                    OutlinedButton(onClick = { csvLauncher.launch("pickmsg-records.csv") }) { Text("导出 CSV") }
+                    PickMsgOutlinedButton(onClick = viewModel::cleanupNow) { Text("立即清理") }
+                    PickMsgOutlinedButton(onClick = { csvLauncher.launch("pickmsg-records.csv") }) { Text("导出 CSV") }
                 }
             }
 
-            SectionCard("备份") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = { backupExportLauncher.launch("pickmsg-backup.json") }) { Text("导出到文件") }
-                    OutlinedButton(onClick = {
+            SectionCard("备份与恢复", collapsible = true) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                    PickMsgOutlinedButton(onClick = { backupExportLauncher.launch("pickmsg-backup.json") }) { Text("导出到文件") }
+                    PickMsgOutlinedButton(onClick = {
                         backupImportLauncher.launch(arrayOf("application/json", "text/*", "*/*"))
                     }) { Text("从文件导入") }
                 }
                 HorizontalDivider()
                 WebDavEditor(viewModel, webdav)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(onClick = viewModel::testWebDav) { Text("测试连接") }
-                    OutlinedButton(onClick = viewModel::uploadBackup) { Text("手动上传") }
-                    OutlinedButton(onClick = viewModel::downloadBackupImport) { Text("下载并导入") }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                    PickMsgOutlinedButton(onClick = viewModel::testWebDav) { Text("测试连接") }
+                    PickMsgOutlinedButton(onClick = viewModel::uploadBackup) { Text("手动上传") }
+                    PickMsgOutlinedButton(onClick = viewModel::downloadBackupImport) { Text("下载并导入") }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(
                         checked = autoBackupEnabled,
                         onCheckedChange = { viewModel.setAutoBackup(it, autoBackupHours) },
                     )
-                    Text("自动备份到 WebDAV", modifier = Modifier.weight(1f))
-                    OutlinedTextField(
-                        value = autoBackupHours.toString(),
-                        onValueChange = { value ->
-                            value.toIntOrNull()?.let { viewModel.setAutoBackup(autoBackupEnabled, it.coerceIn(1, 720)) }
-                        },
-                        modifier = Modifier.width(90.dp),
-                        label = { Text("小时") },
-                        singleLine = true,
-                    )
+                    Text("自动备份", modifier = Modifier.weight(1f))
                 }
+                OutlinedTextField(
+                    shape = PickMsgShape.control,
+                    value = autoBackupHours.toString(),
+                    onValueChange = { value ->
+                        value.toIntOrNull()?.let { viewModel.setAutoBackup(autoBackupEnabled, it.coerceIn(1, 720)) }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("备份间隔（小时）") },
+                    singleLine = true,
+                )
             }
 
-            SectionCard("邮件转发 SMTP 账号") {
+            SectionCard("邮件转发账号", collapsible = true) {
                 SmtpEditor(viewModel, smtp)
             }
 
             SectionCard("统计") {
-                Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                FlowRow(horizontalArrangement = Arrangement.SpaceEvenly, verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), modifier = Modifier.fillMaxWidth()) {
                     StatBox("总计", totalCount)
                     StatBox("今日", todayCount)
                     StatBox("应用", appCounts.size)
@@ -216,7 +224,7 @@ fun MineScreen(viewModel: MineViewModel) {
                             Text(
                                 date,
                                 style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.width(48.dp),
+                                modifier = Modifier.widthIn(min = 48.dp),
                             )
                             Box(
                                 modifier = Modifier
@@ -237,7 +245,7 @@ fun MineScreen(viewModel: MineViewModel) {
                             Text(
                                 " ${day.count}",
                                 style = MaterialTheme.typography.labelSmall,
-                                modifier = Modifier.width(40.dp),
+                                modifier = Modifier.widthIn(min = 40.dp),
                             )
                         }
                     }
@@ -253,7 +261,7 @@ fun MineScreen(viewModel: MineViewModel) {
 
             SectionCard("关于") {
                 Text(
-                    "PickMsg 0.2.0 · 通知采集与规则过滤\n所有数据仅保存在本机；外发仅发生在你显式配置的转发动作",
+                    "PickMsg · 通知采集与规则过滤\n数据保存在本机，仅按你配置的规则转发。",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -262,11 +270,20 @@ fun MineScreen(viewModel: MineViewModel) {
 }
 
 @Composable
-private fun SectionCard(title: String, content: @Composable () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-            content()
+private fun SectionCard(title: String, collapsible: Boolean = false, content: @Composable () -> Unit) {
+    var expanded by rememberSaveable(title) { mutableStateOf(!collapsible) }
+    PickMsgCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(PickMsgSpace.card), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+            if (collapsible) {
+                TextButton(onClick = { expanded = !expanded }, modifier = Modifier.fillMaxWidth(), contentPadding = PaddingValues(0.dp)) {
+                    Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    Icon(if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "收起$title" else "展开$title")
+                }
+            } else {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            }
+            if (expanded) content()
         }
     }
 }
@@ -285,6 +302,7 @@ private fun WebDavEditor(viewModel: MineViewModel, config: WebDavConfig) {
     var user by remember(config.user) { mutableStateOf(config.user) }
     var password by remember(config.password) { mutableStateOf(config.password) }
     OutlinedTextField(
+        shape = PickMsgShape.control,
         value = url,
         onValueChange = { url = it },
         modifier = Modifier.fillMaxWidth(),
@@ -293,6 +311,7 @@ private fun WebDavEditor(viewModel: MineViewModel, config: WebDavConfig) {
         singleLine = true,
     )
     OutlinedTextField(
+        shape = PickMsgShape.control,
         value = user,
         onValueChange = { user = it },
         modifier = Modifier.fillMaxWidth(),
@@ -300,13 +319,14 @@ private fun WebDavEditor(viewModel: MineViewModel, config: WebDavConfig) {
         singleLine = true,
     )
     OutlinedTextField(
+        shape = PickMsgShape.control,
         value = password,
         onValueChange = { password = it },
         modifier = Modifier.fillMaxWidth(),
         label = { Text("密码") },
         singleLine = true,
     )
-    OutlinedButton(onClick = { viewModel.setWebDav(WebDavConfig(url.trim(), user.trim(), password)) }) {
+    PickMsgOutlinedButton(onClick = { viewModel.setWebDav(WebDavConfig(url.trim(), user.trim(), password)) }) {
         Text("保存 WebDAV 配置")
     }
 }
@@ -319,6 +339,7 @@ private fun SmtpEditor(viewModel: MineViewModel, config: SmtpConfig) {
     var password by remember(config.password) { mutableStateOf(config.password) }
     var ssl by remember(config.ssl) { mutableStateOf(config.ssl) }
     OutlinedTextField(
+        shape = PickMsgShape.control,
         value = host,
         onValueChange = { host = it },
         modifier = Modifier.fillMaxWidth(),
@@ -327,6 +348,7 @@ private fun SmtpEditor(viewModel: MineViewModel, config: SmtpConfig) {
         singleLine = true,
     )
     OutlinedTextField(
+        shape = PickMsgShape.control,
         value = port,
         onValueChange = { port = it.filter { c -> c.isDigit() }.take(5) },
         modifier = Modifier.fillMaxWidth(),
@@ -334,6 +356,7 @@ private fun SmtpEditor(viewModel: MineViewModel, config: SmtpConfig) {
         singleLine = true,
     )
     OutlinedTextField(
+        shape = PickMsgShape.control,
         value = user,
         onValueChange = { user = it },
         modifier = Modifier.fillMaxWidth(),
@@ -341,6 +364,7 @@ private fun SmtpEditor(viewModel: MineViewModel, config: SmtpConfig) {
         singleLine = true,
     )
     OutlinedTextField(
+        shape = PickMsgShape.control,
         value = password,
         onValueChange = { password = it },
         modifier = Modifier.fillMaxWidth(),
@@ -351,7 +375,7 @@ private fun SmtpEditor(viewModel: MineViewModel, config: SmtpConfig) {
         Checkbox(checked = ssl, onCheckedChange = { ssl = it })
         Text("SSL（465 端口勾选；587 端口取消勾选用 STARTTLS）", style = MaterialTheme.typography.bodySmall)
     }
-    OutlinedButton(onClick = {
+    PickMsgOutlinedButton(onClick = {
         viewModel.setSmtp(
             SmtpConfig(
                 host = host.trim(),

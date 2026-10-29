@@ -12,3 +12,4 @@
 *.hprof
 /keystore/
 /keystore.properties
+/docs/design/glass-concepts/*.log
