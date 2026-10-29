@@ -9,10 +9,12 @@ PickMsg 的文档分为当前说明、验证记录和历史资料。先按目的
 | 了解功能、安装并开始使用 | [项目首页](../README.md) | 使用入口、功能范围、当前界面预览 |
 | 构建、签名、调试或维护代码 | [构建与开发](development.md) | 环境、命令、源码结构、实现注意事项 |
 | 新增或修改界面 | [设计规范](design/DESIGN_SYSTEM.md) | 颜色、尺寸、组件、交互和维护规则 |
+| 使用或更新品牌图标 | [品牌资源](../assets/branding/README.md) | 定稿来源、图标导出与 Android 资源分工 |
 | 在自己的手机上验证 | [真机测试清单](real-device-testing.md) | 待执行步骤与结果记录，不是通过证明 |
 
 ## 验证记录与配图
 
+- [v0.5.1 图标迭代](releases/v0.5.1.md)：米白底品牌图标与 Android 资源接入；[图标验收](design/icon-acceptance/README.md)记录本轮检查。
 - [v0.4.0 发布说明](releases/v0.4.0.md)：本版变化、安装要求和已知限制。
 - [2026-10-29 界面精修验收](design/acceptance/ACCEPTANCE.md)：明确列出已检查的页面、环境、截图、测试结果和未覆盖项。
 - [当前截图目录](design/acceptance/)：首页与设计规范直接复用这里的图片，不维护重复副本。图中是专用模拟器的 QA 数据。

@@ -12,6 +12,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -19,6 +20,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -26,9 +29,12 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +48,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pickmsg.app.data.ActionSpec
@@ -51,9 +60,17 @@ import com.pickmsg.app.data.FormatOp
 import com.pickmsg.app.data.FormatOpType
 import com.pickmsg.app.data.FormatTarget
 import com.pickmsg.app.data.MatchMode
+import com.pickmsg.app.data.NotificationRecord
 import com.pickmsg.app.data.RuleInfo
 import com.pickmsg.app.data.SceneMatchMode
+import com.pickmsg.app.service.ActionPreview
+import com.pickmsg.app.service.RuleFormatter
 import com.pickmsg.app.service.RuleMatcher
+import com.pickmsg.app.service.SceneEvaluator
+import com.pickmsg.app.service.actionsSummaryText
+import com.pickmsg.app.service.matchSummaryText
+import com.pickmsg.app.ui.theme.PickMsgBadge
+import com.pickmsg.app.ui.theme.PickMsgCard
 import com.pickmsg.app.ui.theme.PickMsgDeleteAction
 import com.pickmsg.app.ui.theme.PickMsgFilterChip
 import com.pickmsg.app.ui.theme.PickMsgOutlinedButton
@@ -268,8 +285,16 @@ private data class DraftState(
     }
 }
 
+/** 预览用的样例通知 */
+private data class SampleNotification(
+    val appKey: String,
+    val appLabel: String,
+    val title: String,
+    val text: String,
+)
+
 // ---------------------------------------------------------------------------
-// 编辑页
+// 编辑页：实时预览卡 + 折叠分区
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -279,7 +304,37 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
     var showFormatDialog by remember { mutableStateOf(false) }
     val appCounts by viewModel.appCounts.collectAsStateWithLifecycle()
     val scenes by viewModel.scenes.collectAsStateWithLifecycle()
+    val recentRecords by viewModel.recentRecords.collectAsStateWithLifecycle()
     val webhookTestResult by viewModel.webhookTestResult.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    // 样例来源：历史记录点选 或 自定义输入
+    var sampleRecordId by remember { mutableStateOf<Long?>(null) }
+    var customMode by remember { mutableStateOf(false) }
+    var customTitle by remember { mutableStateOf("") }
+    var customText by remember { mutableStateOf("") }
+    var customPkg by remember { mutableStateOf("") }
+
+    val sample: SampleNotification? = when {
+        customMode -> SampleNotification(
+            appKey = customPkg.trim().ifBlank { "com.example.sample" },
+            appLabel = customPkg.trim().ifBlank { "样例应用" },
+            title = customTitle,
+            text = customText,
+        )
+        sampleRecordId != null -> recentRecords.firstOrNull { it.id == sampleRecordId }?.let {
+            SampleNotification(appKey = it.appKey, appLabel = it.appLabel, title = it.title, text = it.text)
+        }
+        else -> null
+    }
+
+    val draftRule = draft.toRuleInfo(existing)
+
+    // 分区折叠状态：预览卡之外只有四个可折叠分区，解决"密密麻麻"
+    var matchExpanded by remember { mutableStateOf(true) }
+    var actionsExpanded by remember { mutableStateOf(false) }
+    var formatExpanded by remember { mutableStateOf(false) }
+    var scenesExpanded by remember { mutableStateOf(false) }
 
     val ringtonePicker = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
@@ -343,366 +398,380 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
                 singleLine = true,
             )
 
-            SectionTitle("应用匹配")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
-                AppMatchMode.entries.forEach { mode ->
-                    PickMsgFilterChip(
-                        selected = draft.appMode == mode,
-                        onClick = { draft = draft.copy(appMode = mode) },
-                        label = {
-                            Text(
-                                when (mode) {
-                                    AppMatchMode.ALL -> "全部应用"
-                                    AppMatchMode.WHITELIST -> "仅选中应用"
-                                    AppMatchMode.BLACKLIST -> "排除选中应用"
-                                },
-                            )
+            // ---------------- 实时预览卡 ----------------
+            LivePreviewCard(
+                sample = sample,
+                customMode = customMode,
+                customTitle = customTitle,
+                customText = customText,
+                customPkg = customPkg,
+                onCustomTitle = { customTitle = it },
+                onCustomText = { customText = it },
+                onCustomPkg = { customPkg = it },
+                recentRecords = recentRecords,
+                sampleRecordId = sampleRecordId,
+                onSelectRecord = { sampleRecordId = it; customMode = false },
+                onToggleCustom = {
+                    customMode = !customMode
+                    if (customMode) sampleRecordId = null
+                },
+                draftRule = draftRule,
+                sceneSatisfied = run {
+                    val bound = scenes.filter { it.enable && it.id in draft.scenesIds }
+                    if (sample == null || bound.isEmpty()) null
+                    else {
+                        val results = bound.map { SceneEvaluator.satisfied(context, it) }
+                        if (draft.sceneMatchMode == SceneMatchMode.ANY) results.any { it } else results.all { it }
+                    }
+                },
+            )
+
+            // ---------------- 匹配条件 ----------------
+            ExpandingSection(
+                title = "匹配条件",
+                summary = draftRule.matchSummaryText(),
+                expanded = matchExpanded,
+                onToggle = { matchExpanded = !matchExpanded },
+            ) {
+                Text("应用匹配", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                    AppMatchMode.entries.forEach { mode ->
+                        PickMsgFilterChip(
+                            selected = draft.appMode == mode,
+                            onClick = { draft = draft.copy(appMode = mode) },
+                            label = {
+                                Text(
+                                    when (mode) {
+                                        AppMatchMode.ALL -> "全部应用"
+                                        AppMatchMode.WHITELIST -> "仅选中应用"
+                                        AppMatchMode.BLACKLIST -> "排除选中应用"
+                                    },
+                                )
+                            },
+                        )
+                    }
+                }
+                if (draft.appMode != AppMatchMode.ALL) {
+                    if (draft.apps.isNotEmpty()) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                            draft.apps.forEach { pkg ->
+                                PickMsgFilterChip(
+                                    selected = true,
+                                    onClick = { draft = draft.copy(apps = draft.apps - pkg) },
+                                    label = { Text(pkg) },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.Close, contentDescription = "移除", Modifier.width(16.dp))
+                                    },
+                                )
+                            }
+                        }
+                    }
+                    if (appCounts.isNotEmpty()) {
+                        Text("从已采集的应用中选择：", style = MaterialTheme.typography.bodySmall)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                            appCounts.forEach { app ->
+                                PickMsgFilterChip(
+                                    selected = app.packageName in draft.apps,
+                                    onClick = {
+                                        draft = if (app.packageName in draft.apps) {
+                                            draft.copy(apps = draft.apps - app.packageName)
+                                        } else {
+                                            draft.copy(apps = draft.apps + app.packageName)
+                                        }
+                                    },
+                                    label = { Text(app.appLabel) },
+                                )
+                            }
+                        }
+                    }
+                    ManualPackageInput(
+                        onAdd = { pkg ->
+                            if (pkg.isNotEmpty() && pkg !in draft.apps) {
+                                draft = draft.copy(apps = draft.apps + pkg)
+                            }
                         },
                     )
                 }
-            }
-            if (draft.appMode != AppMatchMode.ALL) {
-                if (draft.apps.isNotEmpty()) {
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
-                        draft.apps.forEach { pkg ->
-                            PickMsgFilterChip(
-                                selected = true,
-                                onClick = { draft = draft.copy(apps = draft.apps - pkg) },
-                                label = { Text(pkg) },
-                                leadingIcon = {
-                                    Icon(Icons.Default.Close, contentDescription = "移除", Modifier.width(16.dp))
-                                },
-                            )
-                        }
-                    }
-                }
-                if (appCounts.isNotEmpty()) {
-                    Text("从已采集的应用中选择：", style = MaterialTheme.typography.bodySmall)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
-                        appCounts.forEach { app ->
-                            PickMsgFilterChip(
-                                selected = app.packageName in draft.apps,
-                                onClick = {
-                                    draft = if (app.packageName in draft.apps) {
-                                        draft.copy(apps = draft.apps - app.packageName)
-                                    } else {
-                                        draft.copy(apps = draft.apps + app.packageName)
-                                    }
-                                },
-                                label = { Text(app.appLabel) },
-                            )
-                        }
-                    }
-                }
-                ManualPackageInput(
-                    onAdd = { pkg ->
-                        if (pkg.isNotEmpty() && pkg !in draft.apps) {
-                            draft = draft.copy(apps = draft.apps + pkg)
-                        }
+
+                MatchSection(
+                    title = "标题匹配",
+                    mode = draft.titleMode,
+                    keywords = draft.titleKeywords,
+                    groupA = draft.titleA,
+                    groupB = draft.titleB,
+                    onChange = { mode, kw, a, b ->
+                        draft = draft.copy(titleMode = mode, titleKeywords = kw, titleA = a, titleB = b)
                     },
                 )
-            }
-
-            MatchSection(
-                title = "标题匹配",
-                mode = draft.titleMode,
-                keywords = draft.titleKeywords,
-                groupA = draft.titleA,
-                groupB = draft.titleB,
-                onChange = { mode, kw, a, b ->
-                    draft = draft.copy(titleMode = mode, titleKeywords = kw, titleA = a, titleB = b)
-                },
-            )
-            MatchSection(
-                title = "内容匹配",
-                mode = draft.textMode,
-                keywords = draft.textKeywords,
-                groupA = draft.textA,
-                groupB = draft.textB,
-                onChange = { mode, kw, a, b ->
-                    draft = draft.copy(textMode = mode, textKeywords = kw, textA = a, textB = b)
-                },
-            )
-
-            SectionTitle("组合方式")
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
-                PickMsgFilterChip(
-                    selected = !draft.titleOrText,
-                    onClick = { draft = draft.copy(titleOrText = false) },
-                    label = { Text("标题且内容") },
+                MatchSection(
+                    title = "内容匹配",
+                    mode = draft.textMode,
+                    keywords = draft.textKeywords,
+                    groupA = draft.textA,
+                    groupB = draft.textB,
+                    onChange = { mode, kw, a, b ->
+                        draft = draft.copy(textMode = mode, textKeywords = kw, textA = a, textB = b)
+                    },
                 )
-                PickMsgFilterChip(
-                    selected = draft.titleOrText,
-                    onClick = { draft = draft.copy(titleOrText = true) },
-                    label = { Text("标题或内容") },
-                )
-            }
 
-            SectionTitle("格式化（先于动作执行，结果供所有动作使用）")
-            if (draft.formatOps.isEmpty()) {
-                Text("无", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-            } else {
-                draft.formatOps.forEachIndexed { index, op ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            formatOpLabel(op),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(1f),
-                        )
-                        IconButton(onClick = {
-                            draft = draft.copy(formatOps = draft.formatOps.filterIndexed { i, _ -> i != index })
-                        }) {
-                            Icon(Icons.Default.Close, contentDescription = "删除此格式化", Modifier.width(20.dp))
-                        }
-                    }
-                }
-            }
-            PickMsgOutlinedButton(onClick = { showFormatDialog = true }) {
-                Icon(Icons.Default.Add, contentDescription = null, Modifier.width(18.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("添加格式化")
-            }
-
-            // ---------------- 整理类动作 ----------------
-            SectionTitle("动作 · 整理")
-            ActionRow("移除通知", draft.needRemove) { draft = draft.copy(needRemove = it) }
-            if (draft.needRemove) {
-                NumberField("延迟秒（0=立即）", draft.removeDelaySec) {
-                    draft = draft.copy(removeDelaySec = it)
-                }
-            }
-            ActionRow("替换重发（保留原通知点击跳转）", draft.needRepost) { draft = draft.copy(needRepost = it) }
-            if (draft.needRepost) {
-                TemplateField("重发标题模板（留空用原标题）", draft.repostTitleTemplate) {
-                    draft = draft.copy(repostTitleTemplate = it)
-                }
-                TemplateField("重发内容模板（留空用原内容）", draft.repostTextTemplate) {
-                    draft = draft.copy(repostTextTemplate = it)
-                }
-                PlaceholderHint()
-            }
-            ActionRow("复制内容到剪贴板", draft.needCopy) { draft = draft.copy(needCopy = it) }
-            ActionRow("打开原通知目标（代替用户点击）", draft.needOpen) { draft = draft.copy(needOpen = it) }
-
-            // ---------------- 提醒类动作 ----------------
-            SectionTitle("动作 · 提醒")
-            ActionRow("播放铃声", draft.needSound) { draft = draft.copy(needSound = it) }
-            if (draft.needSound) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
-                    PickMsgOutlinedButton(onClick = {
-                        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-                            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
-                            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-                        }
-                        ringtonePicker.launch(intent)
-                    }) {
-                        Text(if (draft.soundUri.isBlank()) "选择铃声（默认通知音）" else "已选铃声，点击更换")
-                    }
-                    if (draft.soundUri.isNotBlank()) {
-                        TextButton(onClick = { draft = draft.copy(soundUri = "") }) { Text("恢复默认") }
-                    }
-                }
-                ActionRow("无视音量强制播放（闹钟通道）", draft.soundForce) { draft = draft.copy(soundForce = it) }
-            }
-            ActionRow("震动", draft.needVibrate) { draft = draft.copy(needVibrate = it) }
-            if (draft.needVibrate) {
-                OutlinedTextField(
-                    shape = PickMsgShape.control,
-                    value = draft.vibratePattern,
-                    onValueChange = { draft = draft.copy(vibratePattern = it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("波形（毫秒序列）") },
-                    placeholder = { Text("0:200:100:200") },
-                    singleLine = true,
-                )
-            }
-            ActionRow("TTS 语音播报", draft.needTts) { draft = draft.copy(needTts = it) }
-            if (draft.needTts) {
-                TemplateField("播报模板（留空用「应用名，标题」）", draft.ttsTemplate) {
-                    draft = draft.copy(ttsTemplate = it)
-                }
-                PlaceholderHint()
-            }
-
-            // ---------------- 转发类动作 ----------------
-            SectionTitle("动作 · 转发")
-            ActionRow("Webhook", draft.needWebhook) { draft = draft.copy(needWebhook = it) }
-            if (draft.needWebhook) {
-                Text("预设：", style = MaterialTheme.typography.bodySmall)
+                Text("组合方式", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
-                    WEBHOOK_PRESETS.forEach { (label, prefix) ->
-                        PickMsgFilterChip(
-                            selected = draft.webhookUrl.startsWith(prefix) && prefix.isNotEmpty(),
-                            onClick = {
-                                draft = draft.copy(
-                                    webhookUrl = prefix,
-                                    webhookBody = WEBHOOK_DEFAULT_BODIES[label] ?: draft.webhookBody,
-                                    webhookMethod = "POST",
-                                )
-                            },
-                            label = { Text(label) },
-                        )
-                    }
-                }
-                OutlinedTextField(
-                    shape = PickMsgShape.control,
-                    value = draft.webhookUrl,
-                    onValueChange = { draft = draft.copy(webhookUrl = it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Webhook URL") },
-                    singleLine = true,
-                )
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
-                    listOf("GET", "POST").forEach { m ->
-                        PickMsgFilterChip(
-                            selected = draft.webhookMethod == m,
-                            onClick = { draft = draft.copy(webhookMethod = m) },
-                            label = { Text(m) },
-                        )
-                    }
-                }
-                OutlinedTextField(
-                    shape = PickMsgShape.control,
-                    value = draft.webhookHeaders,
-                    onValueChange = { draft = draft.copy(webhookHeaders = it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("自定义 Headers（每行 Key: Value）") },
-                )
-                OutlinedTextField(
-                    shape = PickMsgShape.control,
-                    value = draft.webhookBody,
-                    onValueChange = { draft = draft.copy(webhookBody = it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Body 模板") },
-                )
-                PlaceholderHint()
-                PickMsgOutlinedButton(onClick = {
-                    viewModel.testWebhook(
-                        ActionSpec(
-                            type = ActionType.WEBHOOK,
-                            url = draft.webhookUrl,
-                            method = draft.webhookMethod,
-                            headers = draft.webhookHeaders,
-                            body = draft.webhookBody,
-                        ),
+                    PickMsgFilterChip(
+                        selected = !draft.titleOrText,
+                        onClick = { draft = draft.copy(titleOrText = false) },
+                        label = { Text("标题且内容") },
                     )
-                }, enabled = draft.webhookUrl.isNotBlank()) {
-                    Text("发送测试请求")
+                    PickMsgFilterChip(
+                        selected = draft.titleOrText,
+                        onClick = { draft = draft.copy(titleOrText = true) },
+                        label = { Text("标题或内容") },
+                    )
                 }
-                webhookTestResult?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
-                }
-            }
-            ActionRow("邮件转发（SMTP 账号在「我的」里配置）", draft.needEmail) { draft = draft.copy(needEmail = it) }
-            if (draft.needEmail) {
-                OutlinedTextField(
-                    shape = PickMsgShape.control,
-                    value = draft.emailTo,
-                    onValueChange = { draft = draft.copy(emailTo = it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("收件人（逗号分隔）") },
-                    singleLine = true,
-                )
-            }
-            ActionRow("短信转发", draft.needSms) { draft = draft.copy(needSms = it) }
-            if (draft.needSms) {
-                OutlinedTextField(
-                    shape = PickMsgShape.control,
-                    value = draft.smsNumbers,
-                    onValueChange = { draft = draft.copy(smsNumbers = it) },
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("目标号码（逗号分隔）") },
-                    supportingText = { Text("将申请短信发送权限；产生运营商费用") },
-                )
-            }
-            ActionRow("手环转发（重复重发提醒）", draft.needWristband) { draft = draft.copy(needWristband = it) }
-            if (draft.needWristband) {
-                NumberField("重发次数", draft.wristbandTimes) { draft = draft.copy(wristbandTimes = it) }
-                NumberField("间隔秒", draft.wristbandInterval) { draft = draft.copy(wristbandInterval = it) }
             }
 
-            // ---------------- 场景 ----------------
-            SectionTitle("生效场景（不选 = 全时段生效）")
-            if (scenes.isEmpty()) {
-                Text(
-                    "还没有场景，先在「场景」页创建",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            } else {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
-                    scenes.forEach { scene ->
-                        PickMsgFilterChip(
-                            selected = scene.id in draft.scenesIds,
-                            onClick = {
-                                draft = if (scene.id in draft.scenesIds) {
-                                    draft.copy(scenesIds = draft.scenesIds - scene.id)
-                                } else {
-                                    draft.copy(scenesIds = draft.scenesIds + scene.id)
-                                }
-                            },
-                            label = { Text(scene.name) },
-                        )
+            // ---------------- 执行动作 ----------------
+            ExpandingSection(
+                title = "执行动作",
+                summary = actionsSummaryText(draftRule.actions),
+                expanded = actionsExpanded,
+                onToggle = { actionsExpanded = !actionsExpanded },
+            ) {
+                Text("整理", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                ActionRow("移除通知", draft.needRemove) { draft = draft.copy(needRemove = it) }
+                if (draft.needRemove) {
+                    NumberField("延迟秒（0=立即）", draft.removeDelaySec) {
+                        draft = draft.copy(removeDelaySec = it)
                     }
                 }
-                if (draft.scenesIds.isNotEmpty()) {
+                ActionRow("替换重发（保留原通知点击跳转）", draft.needRepost) { draft = draft.copy(needRepost = it) }
+                if (draft.needRepost) {
+                    TemplateField("重发标题模板（留空用原标题）", draft.repostTitleTemplate) {
+                        draft = draft.copy(repostTitleTemplate = it)
+                    }
+                    TemplateField("重发内容模板（留空用原内容）", draft.repostTextTemplate) {
+                        draft = draft.copy(repostTextTemplate = it)
+                    }
+                    PlaceholderHint()
+                }
+                ActionRow("复制内容到剪贴板", draft.needCopy) { draft = draft.copy(needCopy = it) }
+                ActionRow("打开原通知目标（代替用户点击）", draft.needOpen) { draft = draft.copy(needOpen = it) }
+
+                Text("提醒", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                ActionRow("播放铃声", draft.needSound) { draft = draft.copy(needSound = it) }
+                if (draft.needSound) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                        PickMsgOutlinedButton(onClick = {
+                            val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+                                putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+                            }
+                            ringtonePicker.launch(intent)
+                        }) {
+                            Text(if (draft.soundUri.isBlank()) "选择铃声（默认通知音）" else "已选铃声，点击更换")
+                        }
+                        if (draft.soundUri.isNotBlank()) {
+                            TextButton(onClick = { draft = draft.copy(soundUri = "") }) { Text("恢复默认") }
+                        }
+                    }
+                    ActionRow("无视音量强制播放（闹钟通道）", draft.soundForce) { draft = draft.copy(soundForce = it) }
+                }
+                ActionRow("震动", draft.needVibrate) { draft = draft.copy(needVibrate = it) }
+                if (draft.needVibrate) {
+                    OutlinedTextField(
+                        shape = PickMsgShape.control,
+                        value = draft.vibratePattern,
+                        onValueChange = { draft = draft.copy(vibratePattern = it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("波形（毫秒序列）") },
+                        placeholder = { Text("0:200:100:200") },
+                        singleLine = true,
+                    )
+                }
+                ActionRow("TTS 语音播报", draft.needTts) { draft = draft.copy(needTts = it) }
+                if (draft.needTts) {
+                    TemplateField("播报模板（留空用「应用名，标题」）", draft.ttsTemplate) {
+                        draft = draft.copy(ttsTemplate = it)
+                    }
+                    PlaceholderHint()
+                }
+
+                Text("转发", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                ActionRow("Webhook", draft.needWebhook) { draft = draft.copy(needWebhook = it) }
+                if (draft.needWebhook) {
+                    Text("预设：", style = MaterialTheme.typography.bodySmall)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
-                        SceneMatchMode.entries.forEach { mode ->
+                        WEBHOOK_PRESETS.forEach { (label, prefix) ->
                             PickMsgFilterChip(
-                                selected = draft.sceneMatchMode == mode,
-                                onClick = { draft = draft.copy(sceneMatchMode = mode) },
-                                label = { Text(if (mode == SceneMatchMode.ANY) "任一场景满足" else "全部场景满足") },
+                                selected = draft.webhookUrl.startsWith(prefix) && prefix.isNotEmpty(),
+                                onClick = {
+                                    draft = draft.copy(
+                                        webhookUrl = prefix,
+                                        webhookBody = WEBHOOK_DEFAULT_BODIES[label] ?: draft.webhookBody,
+                                        webhookMethod = "POST",
+                                    )
+                                },
+                                label = { Text(label) },
                             )
                         }
                     }
+                    OutlinedTextField(
+                        shape = PickMsgShape.control,
+                        value = draft.webhookUrl,
+                        onValueChange = { draft = draft.copy(webhookUrl = it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Webhook URL") },
+                        singleLine = true,
+                    )
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                        listOf("GET", "POST").forEach { m ->
+                            PickMsgFilterChip(
+                                selected = draft.webhookMethod == m,
+                                onClick = { draft = draft.copy(webhookMethod = m) },
+                                label = { Text(m) },
+                            )
+                        }
+                    }
+                    OutlinedTextField(
+                        shape = PickMsgShape.control,
+                        value = draft.webhookHeaders,
+                        onValueChange = { draft = draft.copy(webhookHeaders = it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("自定义 Headers（每行 Key: Value）") },
+                    )
+                    OutlinedTextField(
+                        shape = PickMsgShape.control,
+                        value = draft.webhookBody,
+                        onValueChange = { draft = draft.copy(webhookBody = it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Body 模板") },
+                    )
+                    PlaceholderHint()
+                    PickMsgOutlinedButton(onClick = {
+                        viewModel.testWebhook(
+                            ActionSpec(
+                                type = ActionType.WEBHOOK,
+                                url = draft.webhookUrl,
+                                method = draft.webhookMethod,
+                                headers = draft.webhookHeaders,
+                                body = draft.webhookBody,
+                            ),
+                        )
+                    }, enabled = draft.webhookUrl.isNotBlank()) {
+                        Text("发送测试请求")
+                    }
+                    webhookTestResult?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                    }
+                }
+                ActionRow("邮件转发（SMTP 账号在「我的」里配置）", draft.needEmail) { draft = draft.copy(needEmail = it) }
+                if (draft.needEmail) {
+                    OutlinedTextField(
+                        shape = PickMsgShape.control,
+                        value = draft.emailTo,
+                        onValueChange = { draft = draft.copy(emailTo = it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("收件人（逗号分隔）") },
+                        singleLine = true,
+                    )
+                }
+                ActionRow("短信转发", draft.needSms) { draft = draft.copy(needSms = it) }
+                if (draft.needSms) {
+                    OutlinedTextField(
+                        shape = PickMsgShape.control,
+                        value = draft.smsNumbers,
+                        onValueChange = { draft = draft.copy(smsNumbers = it) },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("目标号码（逗号分隔）") },
+                        supportingText = { Text("将申请短信发送权限；产生运营商费用") },
+                    )
+                }
+                ActionRow("手环转发（重复重发提醒）", draft.needWristband) { draft = draft.copy(needWristband = it) }
+                if (draft.needWristband) {
+                    NumberField("重发次数", draft.wristbandTimes) { draft = draft.copy(wristbandTimes = it) }
+                    NumberField("间隔秒", draft.wristbandInterval) { draft = draft.copy(wristbandInterval = it) }
                 }
             }
 
-            // ---------------- 内嵌测试 ----------------
-            SectionTitle("内嵌测试（输入样例即时验证匹配结果）")
-            var testTitle by remember { mutableStateOf("") }
-            var testText by remember { mutableStateOf("") }
-            var testPkg by remember { mutableStateOf("") }
-            OutlinedTextField(
-                shape = PickMsgShape.control,
-                value = testTitle,
-                onValueChange = { testTitle = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("测试标题") },
-                singleLine = true,
-            )
-            OutlinedTextField(
-                shape = PickMsgShape.control,
-                value = testText,
-                onValueChange = { testText = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("测试内容") },
-            )
-            OutlinedTextField(
-                shape = PickMsgShape.control,
-                value = testPkg,
-                onValueChange = { testPkg = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("测试包名（可选，用于验证应用匹配）") },
-                singleLine = true,
-            )
-            val draftRule = draft.toRuleInfo(null)
-            val (titleOk, textOk) = RuleMatcher.matchSides(draftRule, testTitle, testText)
-            val appOk = testPkg.isBlank() || RuleMatcher.matchApp(draftRule, testPkg.trim())
-            val matched = appOk && (if (draft.titleOrText) titleOk || textOk else titleOk && textOk)
-            Text(
-                buildString {
-                    append(if (matched) "✅ 匹配" else "❌ 不匹配")
-                    if (testTitle.isNotEmpty() || testText.isNotEmpty()) {
-                        append("  （标题侧:${if (titleOk) "命中" else "未命中"} · ")
-                        append("内容侧:${if (textOk) "命中" else "未命中"}")
-                        if (testPkg.isNotBlank()) append(" · 应用侧:${if (appOk) "命中" else "未命中"}")
-                        append("）")
+            // ---------------- 内容格式化 ----------------
+            ExpandingSection(
+                title = "内容格式化",
+                summary = if (draft.formatOps.isEmpty()) "保持原样" else "${draft.formatOps.size} 步，作用于所有动作",
+                expanded = formatExpanded,
+                onToggle = { formatExpanded = !formatExpanded },
+            ) {
+                if (draft.formatOps.isEmpty()) {
+                    Text("无", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                } else {
+                    draft.formatOps.forEachIndexed { index, op ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                formatOpLabel(op),
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f),
+                            )
+                            IconButton(onClick = {
+                                draft = draft.copy(formatOps = draft.formatOps.filterIndexed { i, _ -> i != index })
+                            }) {
+                                Icon(Icons.Default.Close, contentDescription = "删除此格式化", Modifier.width(20.dp))
+                            }
+                        }
                     }
+                }
+                PickMsgOutlinedButton(onClick = { showFormatDialog = true }) {
+                    Icon(Icons.Default.Add, contentDescription = null, Modifier.width(18.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("添加格式化")
+                }
+            }
+
+            // ---------------- 生效场景 ----------------
+            ExpandingSection(
+                title = "生效场景",
+                summary = if (draft.scenesIds.isEmpty()) {
+                    "全时段生效"
+                } else {
+                    val names = scenes.filter { it.id in draft.scenesIds }.joinToString("、") { it.name }
+                    val mode = if (draft.sceneMatchMode == SceneMatchMode.ANY) "任一" else "全部"
+                    "${mode}满足：$names"
                 },
-                style = MaterialTheme.typography.titleSmall,
-                color = if (matched) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-            )
+                expanded = scenesExpanded,
+                onToggle = { scenesExpanded = !scenesExpanded },
+            ) {
+                if (scenes.isEmpty()) {
+                    Text(
+                        "还没有场景，先在「场景」页创建",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                        scenes.forEach { scene ->
+                            PickMsgFilterChip(
+                                selected = scene.id in draft.scenesIds,
+                                onClick = {
+                                    draft = if (scene.id in draft.scenesIds) {
+                                        draft.copy(scenesIds = draft.scenesIds - scene.id)
+                                    } else {
+                                        draft.copy(scenesIds = draft.scenesIds + scene.id)
+                                    }
+                                },
+                                label = { Text(scene.name) },
+                            )
+                        }
+                    }
+                    if (draft.scenesIds.isNotEmpty()) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                            SceneMatchMode.entries.forEach { mode ->
+                                PickMsgFilterChip(
+                                    selected = draft.sceneMatchMode == mode,
+                                    onClick = { draft = draft.copy(sceneMatchMode = mode) },
+                                    label = { Text(if (mode == SceneMatchMode.ANY) "任一场景满足" else "全部场景满足") },
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -714,6 +783,223 @@ fun RuleEditScreen(existing: RuleInfo?, viewModel: RulesViewModel, onClose: () -
             },
             onDismiss = { showFormatDialog = false },
         )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 实时预览卡
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun LivePreviewCard(
+    sample: SampleNotification?,
+    customMode: Boolean,
+    customTitle: String,
+    customText: String,
+    customPkg: String,
+    onCustomTitle: (String) -> Unit,
+    onCustomText: (String) -> Unit,
+    onCustomPkg: (String) -> Unit,
+    recentRecords: List<NotificationRecord>,
+    sampleRecordId: Long?,
+    onSelectRecord: (Long?) -> Unit,
+    onToggleCustom: () -> Unit,
+    draftRule: RuleInfo,
+    sceneSatisfied: Boolean?,
+) {
+    PickMsgCard(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.padding(PickMsgSpace.md),
+            verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm),
+        ) {
+            Text(
+                "实时预览",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                "选一条通知做样例，命中判定和执行效果会随配置实时更新",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
+            // 样例来源：最近的历史记录（真实通知）或自定义输入
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                item {
+                    PickMsgFilterChip(
+                        selected = customMode,
+                        onClick = onToggleCustom,
+                        label = { Text("自定义…") },
+                    )
+                }
+                items(recentRecords, key = { it.id }) { record ->
+                    PickMsgFilterChip(
+                        selected = !customMode && sampleRecordId == record.id,
+                        onClick = { onSelectRecord(if (sampleRecordId == record.id) null else record.id) },
+                        label = {
+                            Text(
+                                "${record.appLabel}·${record.title.ifBlank { record.text }.take(10)}",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        },
+                    )
+                }
+            }
+
+            if (customMode) {
+                OutlinedTextField(
+                    shape = PickMsgShape.control,
+                    value = customTitle,
+                    onValueChange = onCustomTitle,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("样例标题") },
+                    singleLine = true,
+                )
+                OutlinedTextField(
+                    shape = PickMsgShape.control,
+                    value = customText,
+                    onValueChange = onCustomText,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("样例内容") },
+                )
+                OutlinedTextField(
+                    shape = PickMsgShape.control,
+                    value = customPkg,
+                    onValueChange = onCustomPkg,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("样例包名（可选）") },
+                    singleLine = true,
+                )
+            }
+
+            if (sample == null) {
+                Text(
+                    "尚无样例：上方点选一条历史记录，或切到「自定义…」手写一条",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.outline,
+                )
+                return@Column
+            }
+
+            // 原通知
+            HorizontalDivider()
+            Text(sample.appLabel, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            if (sample.title.isNotBlank()) {
+                Text(sample.title, style = MaterialTheme.typography.titleSmall)
+            }
+            if (sample.text.isNotBlank()) {
+                Text(
+                    sample.text,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            // 判定：分侧原因一目了然
+            HorizontalDivider()
+            val appOk = RuleMatcher.matchApp(draftRule, sample.appKey)
+            val (titleOk, textOk) = RuleMatcher.matchSides(draftRule, sample.title, sample.text)
+            val combined = if (draftRule.titleOrText) titleOk || textOk else titleOk && textOk
+            val matched = appOk && sceneSatisfied != false && combined
+
+            Text(
+                if (matched) "✅ 该样例会被此规则命中" else "❌ 该样例不会命中",
+                style = MaterialTheme.typography.titleSmall,
+                color = if (matched) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+            )
+            val sceneBadge = when {
+                sceneSatisfied == null -> "场景 未绑定"
+                sceneSatisfied -> "场景 ✓"
+                else -> "场景 ✗"
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                PickMsgBadge(if (appOk) "应用 ✓" else "应用 ✗", warning = !appOk)
+                PickMsgBadge(if (titleOk) "标题 ✓" else "标题 ✗", warning = !titleOk)
+                PickMsgBadge(if (textOk) "内容 ✓" else "内容 ✗", warning = !textOk)
+                PickMsgBadge(sceneBadge, warning = sceneSatisfied == false)
+            }
+
+            // 命中后的效果：格式化结果 + 每个动作将发生什么
+            if (matched) {
+                val (formattedTitle, formattedText) = RuleFormatter.apply(draftRule.formatOps, sample.title, sample.text)
+                if (draftRule.formatOps.isNotEmpty()) {
+                    Text("格式化后的通知", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+                    Text("标题：${formattedTitle.ifBlank { "（空）" }}", style = MaterialTheme.typography.bodySmall)
+                    Text("内容：${formattedText.ifBlank { "（空）" }}", style = MaterialTheme.typography.bodySmall)
+                }
+                HorizontalDivider()
+                Text(
+                    "命中后将执行",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                if (draftRule.actions.isEmpty()) {
+                    Text(
+                        "未配置动作：这条通知只会被记入采集记录",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    draftRule.actions.forEach { action ->
+                        Text(
+                            "→ ${ActionPreview.describe(action, sample.appLabel, formattedTitle, formattedText)}",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 折叠分区：收起时显示配置摘要，展开后编辑
+// ---------------------------------------------------------------------------
+
+@Composable
+private fun ExpandingSection(
+    title: String,
+    summary: String,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    PickMsgCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onToggle)
+                .padding(horizontal = PickMsgSpace.md, vertical = PickMsgSpace.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall)
+                Text(
+                    summary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Icon(
+                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (expanded) "收起" else "展开",
+            )
+        }
+        if (expanded) {
+            HorizontalDivider()
+            Column(
+                modifier = Modifier.padding(PickMsgSpace.md),
+                verticalArrangement = Arrangement.spacedBy(PickMsgSpace.fieldGap),
+            ) {
+                content()
+            }
+        }
     }
 }
 
@@ -762,7 +1048,7 @@ private fun PlaceholderHint() {
     Text(
         "可用占位符：{app} {title} {content} {time} {date} {week} {mobile}",
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        color = MaterialTheme.colorScheme.outline,
     )
 }
 
@@ -770,9 +1056,9 @@ private fun PlaceholderHint() {
 private fun SectionTitle(text: String) {
     Text(
         text,
-        style = MaterialTheme.typography.titleMedium,
+        style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = PickMsgSpace.sectionGap - PickMsgSpace.fieldGap),
+        modifier = Modifier.padding(top = 8.dp),
     )
 }
 
@@ -886,7 +1172,7 @@ private fun FormatOpDialog(onConfirm: (FormatOp) -> Unit, onDismiss: () -> Unit)
         onDismissRequest = onDismiss,
         title = { Text("添加格式化操作") },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                     FormatTarget.entries.forEach { t ->
                         PickMsgFilterChip(

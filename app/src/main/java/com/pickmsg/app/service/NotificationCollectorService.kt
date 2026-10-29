@@ -14,6 +14,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.pickmsg.app.R
 import com.pickmsg.app.MainActivity
 import com.pickmsg.app.PickMsgApp
 import com.pickmsg.app.data.ActionType
@@ -292,7 +293,7 @@ class NotificationCollectorService : NotificationListenerService() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
         return NotificationCompat.Builder(this, CHANNEL_FOREGROUND)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_pickmsg_notification)
             .setContentTitle("PickMsg 采集服务运行中")
             .setContentText(if (paused) "采集已暂停（服务保持连接）" else "正在采集系统通知")
             .setOngoing(true)

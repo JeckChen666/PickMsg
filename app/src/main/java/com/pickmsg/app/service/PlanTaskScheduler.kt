@@ -9,6 +9,7 @@ import android.os.Build
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.pickmsg.app.R
 import com.pickmsg.app.PickMsgApp
 import com.pickmsg.app.data.PlanTask
 import kotlinx.coroutines.CoroutineScope
@@ -86,7 +87,7 @@ object PlanTaskScheduler {
             )
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_PLAN_TASK)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_pickmsg_notification)
             .setContentTitle(task.notifyTitle.ifBlank { task.name })
             .setContentText(task.notifyContent)
             .setStyle(NotificationCompat.BigTextStyle().bigText(task.notifyContent))

@@ -17,6 +17,7 @@ import android.speech.tts.TextToSpeech
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.pickmsg.app.R
 import com.pickmsg.app.data.ActionSpec
 import com.pickmsg.app.data.SettingsStore
 import kotlinx.coroutines.CoroutineScope
@@ -64,7 +65,7 @@ object ActionExecutor {
                 val newTitle = TemplateRenderer.render(action.titleTemplate.ifBlank { title }, appLabel, title, text)
                 val newText = TemplateRenderer.render(action.textTemplate.ifBlank { text }, appLabel, title, text)
                 val notification = NotificationCompat.Builder(context, NotificationCollectorService.CHANNEL_RULE_REPOST)
-                    .setSmallIcon(android.R.drawable.ic_dialog_info)
+                    .setSmallIcon(R.drawable.ic_pickmsg_notification)
                     .setContentTitle(newTitle)
                     .setContentText(newText)
                     .setStyle(NotificationCompat.BigTextStyle().bigText(newText))
@@ -194,7 +195,7 @@ object ActionExecutor {
                                 context,
                                 NotificationCollectorService.CHANNEL_RULE_REPOST,
                             )
-                                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                                .setSmallIcon(R.drawable.ic_pickmsg_notification)
                                 .setContentTitle(title.ifBlank { appLabel })
                                 .setContentText(text)
                                 .setContentIntent(contentIntent)

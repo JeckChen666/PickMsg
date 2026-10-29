@@ -1,6 +1,7 @@
 package com.pickmsg.app.service
 
 import android.os.Build
+import com.pickmsg.app.data.ActionSpec
 import com.pickmsg.app.data.ActionType
 import com.pickmsg.app.data.AppMatchMode
 import com.pickmsg.app.data.FormatOp
@@ -125,6 +126,16 @@ object TemplateRenderer {
 
 /** 生成规则列表页的摘要行 */
 fun RuleInfo.summaryText(): String = buildString {
+    append(matchSummaryText())
+    if (formatOps.isNotEmpty()) append(" · 格式化×${formatOps.size}")
+    if (actions.isNotEmpty()) {
+        append(" → ")
+        append(actionsSummaryText(actions))
+    }
+}
+
+/** 匹配条件摘要（不含格式化与动作），供编辑页折叠分区显示 */
+fun RuleInfo.matchSummaryText(): String = buildString {
     append(
         when (matchAppMode) {
             AppMatchMode.ALL -> "全部应用"
@@ -134,10 +145,15 @@ fun RuleInfo.summaryText(): String = buildString {
     )
     if (matchTitleMode != MatchMode.ALL) append(" · 标题:${matchTitleMode.label()}${preview(matchTitleKeywords)}")
     if (matchTextMode != MatchMode.ALL) append(" · 内容:${matchTextMode.label()}${preview(matchTextKeywords)}")
-    if (formatOps.isNotEmpty()) append(" · 格式化×${formatOps.size}")
-    if (actions.isNotEmpty()) {
-        append(" → ")
-        append(actions.joinToString("+") { a ->
+    append(" · ${if (titleOrText) "标题或内容" else "标题且内容"}")
+}
+
+/** 动作清单摘要，供编辑页折叠分区显示 */
+fun actionsSummaryText(actions: List<ActionSpec>): String =
+    if (actions.isEmpty()) {
+        "未选择动作（仅记录）"
+    } else {
+        actions.joinToString("+") { a ->
             when (a.type) {
                 ActionType.REMOVE -> if (a.delaySec > 0) "延迟${a.delaySec}s移除" else "移除"
                 ActionType.REPOST -> "重发"
@@ -151,9 +167,8 @@ fun RuleInfo.summaryText(): String = buildString {
                 ActionType.SMS -> "短信"
                 ActionType.WRISTBAND -> "手环×${a.repeatTimes}"
             }
-        })
+        }
     }
-}
 
 private fun MatchMode.label(): String = when (this) {
     MatchMode.ALL -> "无条件"

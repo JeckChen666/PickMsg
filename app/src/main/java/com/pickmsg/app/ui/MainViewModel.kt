@@ -7,6 +7,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pickmsg.app.R
 import com.pickmsg.app.PickMsgApp
 import com.pickmsg.app.data.AppCount
 import com.pickmsg.app.data.NotificationRecord
@@ -119,7 +120,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val body = "常驻测试更新于 ${formatTime(System.currentTimeMillis())}。" +
                 "多次发送只会折叠为一条记录，更新次数 +1。"
             val notification = NotificationCompat.Builder(context, TEST_CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setSmallIcon(R.drawable.ic_pickmsg_notification)
                 .setContentTitle("常驻测试通知")
                 .setContentText(body)
                 .setStyle(NotificationCompat.BigTextStyle().bigText(body))
@@ -138,7 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val body = "这是第 $index 条测试通知，发送于 ${formatDateTime(System.currentTimeMillis())}。" +
             "若它出现在列表中，说明「监听 → 提取 → 入库 → 展示」全链路正常。"
         val notification = NotificationCompat.Builder(context, TEST_CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setSmallIcon(R.drawable.ic_pickmsg_notification)
             .setContentTitle("PickMsg 测试通知 #$index")
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

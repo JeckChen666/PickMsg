@@ -1,0 +1,15 @@
+{
+  "version": "0.5.1",
+  "versionCode": 6,
+  "unitTests": 53,
+  "failures": 0,
+  "resourceChecks": [
+    "10 legacy density/shape resources have valid dimensions and alpha",
+    "API 26/33 adaptive resources and monochrome qualifiers are consistent",
+    "Notification icon uses only white RGB with transparency",
+    "Approved source hash matches; foreground fits circular safe zone",
+    "Manifest uses branded launcher and round icon resources"
+  ],
+  "certificateSha256": "7191ef6aff545e5f48d8872018f65adf9144d5fa86830e16aa8ef8dd4c930852",
+  "apkSha256": "0aae5b18d795f50045961a58fb425c28127cffe317f76858dab382cdd290a898"
+}

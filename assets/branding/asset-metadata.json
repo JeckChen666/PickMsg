@@ -1,0 +1,18 @@
+{
+  "source": "assets/branding/source/approved-ivory.png",
+  "sourceSha256": "bc80fd563957fc62a0e1c2a016573c26f4ecfcb1f777c750363232b94bada94c",
+  "extractionBounds": [
+    225,
+    227,
+    1029,
+    1019
+  ],
+  "adaptiveLayerSize": 1080,
+  "contentSize": [
+    531,
+    523
+  ],
+  "contentRadiusDp": 31.48,
+  "safeRadiusDp": 33,
+  "background": "#F7F4EB"
+}

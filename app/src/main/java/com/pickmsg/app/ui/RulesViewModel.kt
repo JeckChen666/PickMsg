@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.pickmsg.app.PickMsgApp
 import com.pickmsg.app.data.ActionSpec
 import com.pickmsg.app.data.AppCount
+import com.pickmsg.app.data.NotificationRecord
 import com.pickmsg.app.data.RuleInfo
 import com.pickmsg.app.data.Scene
 import com.pickmsg.app.service.ActionExecutor
@@ -30,6 +31,10 @@ class RulesViewModel(application: Application) : AndroidViewModel(application) {
 
     /** 规则可绑定的场景 */
     val scenes: StateFlow<List<Scene>> = database.sceneDao().observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    /** 最近的采集记录，供编辑页"从历史记录选样例"即时预览 */
+    val recentRecords: StateFlow<List<NotificationRecord>> = repository.observeRecent(12)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     private val _webhookTestResult = MutableStateFlow<String?>(null)
