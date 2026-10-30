@@ -1128,7 +1128,7 @@ private fun MatchSection(
             )
         }
         MatchMode.REGEX_MATCH -> KeywordField(keywords, "正则表达式（整串匹配），多个用逗号分隔", mode, onChange)
-        MatchMode.REGEX_EXTRACT -> KeywordField(keywords, "正则表达式（提取片段），多个用逗号分隔", mode, onChange)
+        MatchMode.REGEX_EXTRACT -> KeywordField(keywords, "正则表达式（提取片段；含捕获组时取第一个组），多个用逗号分隔", mode, onChange)
         else -> KeywordField(keywords, "多个关键词用逗号分隔", mode, onChange)
     }
 }

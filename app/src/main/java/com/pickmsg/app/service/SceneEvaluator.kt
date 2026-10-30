@@ -23,6 +23,12 @@ object SceneEvaluator {
     fun satisfied(context: Context, scene: Scene): Boolean =
         scene.conditions.isNotEmpty() && scene.conditions.all { satisfied(context, it) }
 
+    /** 逐条件求值：返回 (全部满足, 未满足条数)，供场景列表实时展示"生效中/未生效 · N 项不满足" */
+    fun detail(context: Context, scene: Scene): Pair<Boolean, Int> {
+        val results = scene.conditions.map { satisfied(context, it) }
+        return results.all { it } to results.count { !it }
+    }
+
     fun satisfied(context: Context, condition: SceneCondition): Boolean {
         if (!conditionEnabled(condition)) return false
         return try {

@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.pickmsg.app.data.SmtpConfig
 import com.pickmsg.app.data.WebDavConfig
+import com.pickmsg.app.ui.theme.PickMsgBadge
 import com.pickmsg.app.ui.theme.PickMsgButton
 import com.pickmsg.app.ui.theme.PickMsgCard
 import com.pickmsg.app.ui.theme.PickMsgOutlinedButton
@@ -117,66 +118,82 @@ fun MineScreen(viewModel: MineViewModel) {
                 }
             }
 
-            SectionCard("服务") {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            // ---------------- 运行状态（常显） ----------------
+            PickMsgCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(PickMsgSpace.card),
+                    verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm),
+                ) {
                     Text(
-                        "通知使用权：${if (listenerEnabled) "已授权" else "未授权"}\n" +
-                            "服务：${if (connected) "已连接" else "未连接"}" +
-                            if (paused) "（已暂停）" else "",
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.weight(1f),
+                        "运行状态",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
                     )
-                    Switch(checked = !paused, onCheckedChange = { viewModel.togglePaused() })
-                }
-                if (!listenerEnabled) {
-                    PickMsgButton(onClick = { openListenerSettings(context) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("前往系统设置授权")
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+                        PickMsgBadge(if (listenerEnabled) "使用权 ✓" else "使用权 ✗", warning = !listenerEnabled)
+                        PickMsgBadge(if (connected) "服务已连接" else "服务未连接", warning = !connected)
+                        PickMsgBadge(if (paused) "采集已暂停" else "采集中", warning = paused)
                     }
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = foregroundEnabled,
-                        onCheckedChange = { viewModel.setForegroundEnabled(it) },
-                    )
-                    Text(
-                        "保持后台运行",
-                        modifier = Modifier.weight(1f).clickable { viewModel.setForegroundEnabled(!foregroundEnabled) },
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = ignoreOngoing,
-                        onCheckedChange = { viewModel.setIgnoreOngoing(it) },
-                    )
-                    Text(
-                        "忽略常驻通知（进度条/状态类不入库）",
-                        modifier = Modifier.weight(1f).clickable { viewModel.setIgnoreOngoing(!ignoreOngoing) },
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                if (!viewModel.batteryOptimizationIgnored()) {
-                    PickMsgOutlinedButton(onClick = viewModel::requestIgnoreBatteryOptimizations) {
-                        Text("允许后台持续运行")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (paused) "采集已暂停（服务保持连接）" else "正在采集系统通知",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Switch(checked = !paused, onCheckedChange = { viewModel.togglePaused() })
+                    }
+                    if (!listenerEnabled) {
+                        PickMsgButton(onClick = { openListenerSettings(context) }, modifier = Modifier.fillMaxWidth()) {
+                            Text("前往系统设置授权")
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = foregroundEnabled,
+                            onCheckedChange = { viewModel.setForegroundEnabled(it) },
+                        )
+                        Text(
+                            "保持后台运行（前台服务常驻）",
+                            modifier = Modifier.weight(1f).clickable { viewModel.setForegroundEnabled(!foregroundEnabled) },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = ignoreOngoing,
+                            onCheckedChange = { viewModel.setIgnoreOngoing(it) },
+                        )
+                        Text(
+                            "忽略常驻通知（进度条/状态类不入库）",
+                            modifier = Modifier.weight(1f).clickable { viewModel.setIgnoreOngoing(!ignoreOngoing) },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (!viewModel.batteryOptimizationIgnored()) {
+                        PickMsgOutlinedButton(onClick = viewModel::requestIgnoreBatteryOptimizations) {
+                            Text("允许后台持续运行")
+                        }
+                    }
+                    PickMsgOutlinedButton(onClick = { showOngoingTool = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("常驻通知管理（隐藏 / 恢复）")
                     }
                 }
             }
 
-            SectionCard("工具") {
-                PickMsgOutlinedButton(onClick = { showOngoingTool = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("常驻通知管理（隐藏 / 恢复）")
-                }
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
+            SectionCard("记录管理", collapsible = true) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(PickMsgSpace.sm)) {
                     OutlinedTextField(
                         shape = PickMsgShape.control,
                         value = keepDays.toString(),
                         onValueChange = { value -> value.toIntOrNull()?.let { viewModel.setKeepDays(it.coerceIn(1, 365)) } },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.weight(1f),
                         label = { Text("保留天数") },
                         singleLine = true,
                     )
                     PickMsgOutlinedButton(onClick = viewModel::cleanupNow) { Text("立即清理") }
-                    PickMsgOutlinedButton(onClick = { csvLauncher.launch("pickmsg-records.csv") }) { Text("导出 CSV") }
+                }
+                PickMsgOutlinedButton(onClick = { csvLauncher.launch("pickmsg-records.csv") }) {
+                    Text("导出 CSV")
                 }
             }
 
@@ -217,7 +234,7 @@ fun MineScreen(viewModel: MineViewModel) {
                 SmtpEditor(viewModel, smtp)
             }
 
-            SectionCard("统计") {
+            SectionCard("统计", collapsible = true) {
                 FlowRow(horizontalArrangement = Arrangement.SpaceEvenly, verticalArrangement = Arrangement.spacedBy(PickMsgSpace.sm), modifier = Modifier.fillMaxWidth()) {
                     StatBox("总计", totalCount)
                     StatBox("今日", todayCount)
@@ -271,7 +288,7 @@ fun MineScreen(viewModel: MineViewModel) {
                 }
             }
 
-            SectionCard("关于") {
+            SectionCard("关于", collapsible = true) {
                 Text(
                     "PickMsg · 通知采集与规则过滤\n数据保存在本机，仅按你配置的规则转发。",
                     style = MaterialTheme.typography.bodySmall,

@@ -57,64 +57,6 @@ import com.pickmsg.app.ui.theme.PickMsgShape
 import com.pickmsg.app.ui.theme.PickMsgSpace
 import com.pickmsg.app.ui.theme.PickMsgTopBar
 
-@Composable
-fun ScenesScreen(viewModel: ScenesViewModel) {
-    val scenes by viewModel.scenes.collectAsStateWithLifecycle()
-    var editing by remember { mutableStateOf<Scene?>(null) }
-    var creating by remember { mutableStateOf(false) }
-
-    editing?.let { scene ->
-        SceneEditScreen(existing = scene, viewModel = viewModel, onClose = { editing = null })
-        return
-    }
-    if (creating) {
-        SceneEditScreen(existing = null, viewModel = viewModel, onClose = { creating = false })
-        return
-    }
-
-    PickMsgScaffold(
-        topBar = { PickMsgTopBar(title = "场景") },
-        floatingActionButton = {
-            PickMsgFloatingActionButton(
-                onClick = { creating = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                label = "新建场景",
-            )
-        },
-    ) { padding ->
-        if (scenes.isEmpty()) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(PickMsgSpace.xxl),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Icon(Icons.Default.Tune, contentDescription = null, tint = MaterialTheme.colorScheme.outline)
-                Spacer(modifier = Modifier.height(PickMsgSpace.sm))
-                Text(
-                    "还没有场景\n按时间、网络等条件控制规则何时生效",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.padding(padding),
-                contentPadding = PickMsgSpace.listWithFabPadding,
-                verticalArrangement = Arrangement.spacedBy(PickMsgSpace.listGap),
-            ) {
-                items(scenes, key = { it.id }) { scene ->
-                    PickMsgManagementCard(
-                            title = scene.name,
-                            summary = scene.conditions.joinToString(" 且 ") { conditionSummary(it) }.ifBlank { "不限条件" },
-                            enabled = scene.enable, onToggle = { viewModel.toggleEnable(scene) },
-                            onEdit = { editing = scene },
-                        )
-                }
-            }
-        }
-    }
-}
-
 fun conditionSummary(c: SceneCondition): String = when (c.type) {
     SceneConditionType.NETWORK ->
         "网络:${c.networkKinds.joinToString("/") { kind ->
@@ -139,7 +81,7 @@ fun weekdayBits(mask: Int): String {
 }
 
 @Composable
-private fun SceneEditScreen(existing: Scene?, viewModel: ScenesViewModel, onClose: () -> Unit) {
+fun SceneEditScreen(existing: Scene?, viewModel: ScenesViewModel, onClose: () -> Unit) {
     BackHandler(onBack = onClose)
     var name by remember { mutableStateOf(existing?.name ?: "") }
     var nameError by remember { mutableStateOf(false) }

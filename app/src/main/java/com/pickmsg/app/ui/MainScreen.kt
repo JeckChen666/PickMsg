@@ -52,10 +52,11 @@ fun MainScreen(
     val tabs = listOf(
         "通知" to Icons.Default.Notifications,
         "规则" to Icons.AutoMirrored.Filled.Rule,
-        "场景" to Icons.Default.Tune,
-        "计划" to Icons.Default.Schedule,
+        "场景与计划" to Icons.Default.Schedule,
         "我的" to Icons.Default.Person,
     )
+    // 兼容旧版本 rememberSaveable 残留的超界 tab
+    if (tab > tabs.lastIndex) tab = tabs.lastIndex
 
     val keyboardVisible = WindowInsets.isImeVisible
     JadeBackdrop {
@@ -95,9 +96,8 @@ fun MainScreen(
                     when (tab) {
                         0 -> RecordsScreen(recordsViewModel)
                         1 -> RulesScreen(rulesViewModel)
-                        2 -> ScenesScreen(scenesViewModel)
-                        3 -> PlanScreen(planViewModel)
-                        4 -> MineScreen(mineViewModel)
+                        2 -> ScenesPlanScreen(scenesViewModel, planViewModel)
+                        3 -> MineScreen(mineViewModel)
                     }
                 }
             }

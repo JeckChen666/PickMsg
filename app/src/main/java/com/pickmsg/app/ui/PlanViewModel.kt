@@ -1,6 +1,7 @@
 package com.pickmsg.app.ui
 
 import android.app.Application
+import android.content.Context
 import android.app.AlarmManager
 import android.os.Build
 import androidx.lifecycle.AndroidViewModel
@@ -52,7 +53,7 @@ class PlanViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     companion object {
-        fun exactAlarmStatus(context: Application): Boolean =
+        fun exactAlarmStatus(context: Context): Boolean =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 context.getSystemService(AlarmManager::class.java)?.canScheduleExactAlarms() ?: false
             } else {

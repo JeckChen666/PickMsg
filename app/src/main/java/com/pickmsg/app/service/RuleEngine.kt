@@ -98,7 +98,10 @@ object RuleFormatter {
             FormatOpType.PREFIX -> op.to + input
             FormatOpType.SUFFIX -> input + op.to
             FormatOpType.REGEX_EXTRACT ->
-                RuleMatcher.patternOf(op.from)?.matcher(input)?.takeIf { it.find() }?.group() ?: input
+                RuleMatcher.patternOf(op.from)?.matcher(input)?.takeIf { it.find() }?.let { m ->
+                    // 正则含捕获组时提取第一个捕获组（如"验证码\D{0,3}(\d{4,8})"只取验证码本身），否则取整个匹配
+                    if (m.groupCount() >= 1) m.group(1) ?: m.group() else m.group()
+                } ?: input
         }
     }
 }

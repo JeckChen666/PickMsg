@@ -110,6 +110,11 @@ object SettingsStore {
         get() = prefs.getLong("lastCleanupAt", 0)
         set(value) = prefs.edit().putLong("lastCleanupAt", value).apply()
 
+    /** 预设规则只在首次启动种一次；用户删除后不再复活 */
+    var presetSeeded: Boolean
+        get() = prefs.getBoolean("presetSeeded", false)
+        set(value) = prefs.edit().putBoolean("presetSeeded", value).apply()
+
     private inline fun <T> persist(key: String, value: T, crossinline update: (T) -> Unit) {
         prefs.edit().apply {
             when (value) {
